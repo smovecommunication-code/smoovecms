@@ -35,3 +35,11 @@ Main vars:
 - `VITE_PUBLIC_SITE_URL`: public site URL for all "Retour au site" links.
 - `VITE_PUBLIC_APP_URL`: legacy fallback retained for backward compatibility.
 - `VITE_CMS_PORT`: local CMS dev port.
+
+
+Production example:
+
+```env
+VITE_API_ORIGIN=https://smove-three.vercel.app
+VITE_API_BASE_URL=/api/v1
+```
