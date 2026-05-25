@@ -1,19 +1,14 @@
 import { logWarn } from '../utils/observability';
 
-function normalizeApiBaseUrl(rawValue: string | undefined, apiOrigin: string): string {
-  const candidate = (rawValue ?? '/api/v1').trim();
+const DEFAULT_API_ORIGIN = 'https://smoveapi-1.onrender.com';
+const DEFAULT_API_BASE_URL = '/api/v1';
+
+function normalizeApiBaseUrl(rawValue: string | undefined): string {
+  const candidate = (rawValue ?? DEFAULT_API_BASE_URL).trim();
   if (candidate.length === 0) {
-    return '/api/v1';
+    return DEFAULT_API_BASE_URL;
   }
-
-  if (candidate.startsWith('http://') || candidate.startsWith('https://')) {
-    return candidate.replace(/\/$/, '');
-  }
-
   if (candidate.startsWith('/')) {
-    if (apiOrigin) {
-      return `${apiOrigin}${candidate}`.replace(/\/$/, '');
-    }
     return candidate.replace(/\/$/, '');
   }
 
@@ -22,7 +17,7 @@ function normalizeApiBaseUrl(rawValue: string | undefined, apiOrigin: string): s
     event: 'invalid_api_base_url_format',
     details: { configuredValue: candidate },
   });
-  return '/api/v1';
+  return DEFAULT_API_BASE_URL;
 }
 
 function parseTimeout(rawValue: string | undefined, defaultValue: number): number {
@@ -40,19 +35,26 @@ function parseTimeout(rawValue: string | undefined, defaultValue: number): numbe
 }
 
 function normalizeApiOrigin(rawValue: string | undefined): string {
-  const candidate = (rawValue ?? '').trim();
-  if (!candidate) return '';
+  const candidate = (rawValue ?? DEFAULT_API_ORIGIN).trim();
+  if (!candidate) return DEFAULT_API_ORIGIN;
   try {
-    return new URL(candidate).origin;
+    const normalized = new URL(candidate).origin;
+    if (normalized.includes('localhost') || normalized.includes('127.0.0.1')) {
+      logWarn({ scope: 'config', event: 'localhost_api_origin_rejected', details: { configuredValue: candidate } });
+      return DEFAULT_API_ORIGIN;
+    }
+    return normalized;
   } catch {
     logWarn({ scope: 'config', event: 'invalid_api_origin', details: { configuredValue: candidate } });
-    return '';
+    return DEFAULT_API_ORIGIN;
   }
 }
 
-const apiOrigin = normalizeApiOrigin(import.meta.env.VITE_API_ORIGIN);
+const API_ORIGIN = normalizeApiOrigin(import.meta.env.VITE_API_ORIGIN);
+const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL);
+const API_URL = `${API_ORIGIN}${API_BASE_URL}`;
 
 export const RUNTIME_CONFIG = {
-  apiBaseUrl: normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL, apiOrigin),
+  apiBaseUrl: API_URL,
   requestTimeoutMs: parseTimeout(import.meta.env.VITE_REQUEST_TIMEOUT_MS, 10000),
 };
