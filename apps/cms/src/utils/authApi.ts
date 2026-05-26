@@ -104,6 +104,12 @@ async function request(path: string, init: RequestInit = {}, timeoutMs = RUNTIME
     });
 
     const json = (await response.json().catch(() => null)) as AuthApiResponse | null;
+    console.info('[auth_api_debug]', {
+      path,
+      status: response.status,
+      credentialsMode: 'include',
+      authenticated: json?.data?.user ? true : json?.data?.user === null ? false : null,
+    });
     return normalizeAuthPayload(json, response.status);
   } catch (error: unknown) {
     if (error instanceof DOMException && error.name === 'AbortError') {
