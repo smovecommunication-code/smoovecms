@@ -23,10 +23,10 @@ export const toProjectMediaReference = (mediaId: string) => toMediaReferenceValu
 export const isProjectMediaReference = (value?: string) => isMediaReferenceValue(value);
 
 export function toCanonicalProjectMediaRoles(
-  project: Pick<Project, 'featuredImage' | 'mainImage' | 'images' | 'mediaRoles' | 'seo'>,
+  project: Pick<Project, 'featuredImage' | 'mainImage' | 'images' | 'mediaRoles' | 'seo'> & Partial<Project>,
 ): CanonicalProjectMediaRoles {
-  const legacyFeatured = asTrimmed(project.featuredImage);
-  const legacyMain = asTrimmed(project.mainImage);
+  const legacyFeatured = asTrimmed(project.featuredImage) || asTrimmed((project as Project).cardImage) || asTrimmed((project as Project).image) || asTrimmed((project as Project).imageUrl) || asTrimmed((project as Project).media);
+  const legacyMain = asTrimmed(project.mainImage) || asTrimmed((project as Project).heroImage);
   const roleCard = asTrimmed(project.mediaRoles?.cardImage);
   const roleHero = asTrimmed(project.mediaRoles?.heroImage);
   const roleCover = asTrimmed(project.mediaRoles?.coverImage);

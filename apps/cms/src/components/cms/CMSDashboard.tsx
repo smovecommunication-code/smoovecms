@@ -775,7 +775,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
 
   const validateBlogForm = (form: BlogFormState) => {
     const errors: Partial<Record<keyof BlogFormState, string>> = {};
-    if (!form.title.trim()) errors.title = 'Le titre est requis.';
+    if (!form.title.trim()) errors.title = 'Veuillez saisir un titre de projet.';
     if (!normalizeSlug(form.slug, form.title)) errors.slug = 'Le slug est requis.';
     if (!form.featuredImage.trim()) errors.featuredImage = 'L’image vedette est requise pour les cartes.';
     if (form.featuredImage.trim() && !isValidMediaField(form.featuredImage)) {
@@ -1151,14 +1151,14 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
 
   const validateProjectForm = (form: ProjectFormState) => {
     const errors: Partial<Record<keyof ProjectFormState, string>> = {};
-    if (!form.title.trim()) errors.title = 'Le titre est requis.';
+    if (!form.title.trim()) errors.title = 'Veuillez saisir un titre de projet.';
     if (form.slug.trim() && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(form.slug.trim())) {
       errors.slug = 'Le slug doit contenir uniquement des lettres minuscules, chiffres et tirets.';
     }
     if (form.year.trim() && !/^\d{4}$/.test(form.year.trim())) {
       errors.year = 'L’année doit être sur 4 chiffres (ex: 2026).';
     }
-    if (!form.cardImage.trim()) errors.cardImage = 'L’image carte est requise pour les cartes.';
+    if (!form.cardImage.trim()) errors.cardImage = 'Veuillez ajouter une image ou un média pour ce projet.';
     if (form.cardImage.trim() && !isValidMediaField(form.cardImage)) {
       errors.cardImage = 'Image carte invalide. Utilisez une URL valide ou media:asset-id existant.';
     }
@@ -1187,13 +1187,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       errors.testimonialText = 'Complétez le témoignage (texte, auteur et poste) ou laissez les champs vides.';
     }
 
-    if (form.status === 'published') {
-      const summarySource = form.summary.trim() || form.description.trim();
-      if (!summarySource || summarySource.length < 24) {
-        errors.summary = "Pour publier, ajoutez un résumé/description d'au moins 24 caractères.";
-      }
-    }
-
+    
     return errors;
   };
 
@@ -1287,17 +1281,17 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       solution: projectForm.solution.trim(),
       results: projectForm.results.split('\n').map((line) => line.trim()).filter(Boolean),
       tags: projectForm.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
-      mainImage: heroImage || 'project cover image',
-      featuredImage: projectForm.cardImage.trim() || heroImage || 'project cover image',
+      mainImage: heroImage || projectForm.cardImage.trim(),
+      featuredImage: projectForm.cardImage.trim() || heroImage,
       mediaRoles: {
-        cardImage: projectForm.cardImage.trim() || heroImage || 'project cover image',
-        heroImage: heroImage || 'project cover image',
-        coverImage: heroImage || projectForm.cardImage.trim() || 'project cover image',
-        socialImage: projectForm.socialImage.trim() || projectForm.cardImage.trim() || heroImage || 'project cover image',
+        cardImage: projectForm.cardImage.trim() || heroImage,
+        heroImage: heroImage || projectForm.cardImage.trim(),
+        coverImage: heroImage || projectForm.cardImage.trim(),
+        socialImage: projectForm.socialImage.trim() || projectForm.cardImage.trim() || heroImage,
         galleryImages: images,
       },
       seo: {
-        socialImage: projectForm.socialImage.trim() || projectForm.cardImage.trim() || heroImage || 'project cover image',
+        socialImage: projectForm.socialImage.trim() || projectForm.cardImage.trim() || heroImage,
       },
       imageAlt: projectForm.imageAlt.trim() || projectForm.title.trim(),
       images,
@@ -1430,7 +1424,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
 
   const validateServiceForm = (form: ServiceFormState, mode: 'create' | 'edit') => {
     const errors: Partial<Record<keyof ServiceFormState, string>> = {};
-    if (!form.title.trim()) errors.title = 'Le titre est requis.';
+    if (!form.title.trim()) errors.title = 'Veuillez saisir un titre de projet.';
     if (mode === 'create' && !form.description.trim()) errors.description = 'La description est requise à la création.';
     if (mode === 'create' && !form.features.trim()) errors.features = 'Ajoutez au moins une fonctionnalité à la création.';
     if (mode === 'create' && form.icon.trim() && !SERVICE_ICONS.has(form.icon.trim())) {
@@ -1811,7 +1805,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
             <h4 className="text-[16px] font-semibold text-[#273a41]">Médias</h4>
             <p className="text-[12px] text-[#6f7f85]">Visuels affichés sur les cartes projets, la page détail et les aperçus sociaux.</p>
             <label className="block">
-              <span className="text-[14px] text-[#6f7f85]">Image de carte</span>
+              <span className="text-[14px] text-[#6f7f85]">Image / média principal (requis)</span>
               <input value={projectForm.cardImage} onChange={(event) => setProjectForm((prev) => ({ ...prev, cardImage: event.target.value }))} className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" placeholder="https://... ou media:asset-id" />
               {projectFormErrors.cardImage ? <p className="text-[12px] text-red-600 mt-1">{projectFormErrors.cardImage}</p> : null}
               <p className="text-[12px] text-[#6f7f85] mt-1">Utilisée sur les cartes du portfolio.</p>
