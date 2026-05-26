@@ -150,7 +150,6 @@ interface ProjectFormState {
 }
 
 
-type RuntimeMode = 'authoritative_remote' | 'backend_unavailable';
 type ServiceFormState = ServiceFormPayloadState;
 
 const SERVICE_ICONS = new Set(['palette', 'code', 'megaphone', 'video', 'box']);
@@ -316,8 +315,6 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [feedback, setFeedback] = useState('');
   const [sectionError, setSectionError] = useState('');
-  const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>('authoritative_remote');
-  const [runtimeWarnings, setRuntimeWarnings] = useState<string[]>([]);
   const [syncDiagnosticsWarning, setSyncDiagnosticsWarning] = useState('');
   const [contentHealth, setContentHealth] = useState<ContentHealthSummary | null>(null);
   const [isHydratingBackend, setIsHydratingBackend] = useState(false);
@@ -531,15 +528,9 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
         setPosts(backendPosts);
         backendPosts.forEach((post) => blogRepository.save(post));
         setPostsError('');
-      } catch {
-        try {
-          if (!active) return;
-          setPostsError('Backend indisponible. Impossible de charger les articles depuis l'API.');
-          markDegradedMode('Blog: backend indisponible.');
-        } catch {
-          if (!active) return;
-          setPostsError('Impossible de charger les articles. Réessayez.');
-        }
+      } catch (error) {
+        if (!active) return;
+        setPostsError(getErrorMessage(error));
       } finally {
         if (active) setPostsLoading(false);
       }
@@ -566,8 +557,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
         syncProjectsFromBackend(backendProjects);
       } catch {
         if (active) {
-          setProjectsError('Backend indisponible. Impossible de charger les projets depuis l'API.');
-          markDegradedMode('Projets: backend indisponible.');
+          setProjectsError('Backend indisponible. Impossible de charger les projets depuis l\'API.');
         }
       } finally {
         if (active) setProjectsLoading(false);
@@ -581,8 +571,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
         setServices(serviceRepository.replaceAll(backendServices));
       } catch {
         if (active) {
-          setServicesError('Backend indisponible. Impossible de charger les services depuis l'API.');
-          markDegradedMode('Services: backend indisponible.');
+          setServicesError('Backend indisponible. Impossible de charger les services depuis l\'API.');
         }
       } finally {
         if (active) setServicesLoading(false);
@@ -593,7 +582,6 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
         if (!active) return;
         syncMediaFromBackend(backendMedia);
       } catch {
-        markDegradedMode('Médiathèque: backend indisponible.');
       }
 
       try {
@@ -604,7 +592,6 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
         setSavedHomeContentSnapshot(saved);
       } catch {
         if (active) {
-          markDegradedMode('Contenu page: backend indisponible.');
         }
       }
 
@@ -615,14 +602,12 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
           setSavedSettingsSnapshot(settings);
         }
       } catch {
-        markDegradedMode('Paramètres CMS: backend indisponible.');
       }
 
       try {
         const history = await requestWithRetry(() => fetchSettingsHistory(20), { retries: 1, retryDelayMs: 250 });
         if (active) setSettingsHistory(history);
       } catch {
-        markDegradedMode('Historique des paramètres indisponible.');
       }
 
       try {
@@ -649,9 +634,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       }
     };
 
-    void load().then(() => {
-      setRuntimeMode((prev) => (prev === 'backend_unavailable' ? prev : 'authoritative_remote'));
-    });
+    void load();
 
     return () => {
       active = false;
@@ -733,16 +716,6 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
   const showSuccess = (message: string) => {
     setFeedback(message);
     setTimeout(() => setFeedback(''), 2500);
-  };
-
-  const markDegradedMode = (reason: string) => {
-    setRuntimeMode('backend_unavailable');
-    setRuntimeWarnings((prev) => (prev.includes(reason) ? prev : [...prev, reason]));
-  };
-
-  const markAuthoritativeMode = () => {
-    setRuntimeMode('authoritative_remote');
-    setRuntimeWarnings([]);
   };
 
   const mapBlogError = (error: unknown) => {
@@ -1106,7 +1079,6 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       showSuccess('Contenu de page enregistré via backend CMS.');
       return true;
     } catch {
-      markDegradedMode('Contenu page: écriture backend indisponible, aucune persistance locale automatique.');
       setHomeContentError('Backend indisponible: enregistrement annulé pour éviter une divergence de source de vérité.');
       console.warn('[cms-page-content] save failed; authoritative reload unavailable');
       return false;
@@ -1128,13 +1100,8 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       const backendPosts = await fetchBackendBlogPosts();
       setPosts(backendPosts);
       backendPosts.forEach((post) => blogRepository.save(post));
-    } catch {
-      try {
-        setPosts(blogRepository.getAll());
-        setPostsError('Backend indisponible, données locales affichées.');
-      } catch {
-        setPostsError('Impossible de charger les articles. Réessayez.');
-      }
+    } catch (error) {
+      setPostsError(getErrorMessage(error));
     } finally {
       setPostsLoading(false);
     }
@@ -2770,22 +2737,6 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
         </header>
 
         <div className="p-8 space-y-6">
-          {runtimeMode === 'backend_unavailable' ? (
-            <div className="rounded-[12px] border border-amber-200 bg-amber-50 p-4 text-amber-800 flex items-start gap-2">
-              <AlertTriangle size={18} className="mt-0.5" />
-              <div>
-                <p className="font-['Abhaya_Libre:Bold',sans-serif] text-[14px]">Backend indisponible</p>
-                <p className="text-[13px]">Le backend n'est pas pleinement disponible. Les données affichées peuvent provenir du cache local et les écritures doivent être considérées non fiables.</p>
-                {runtimeWarnings.length > 0 ? (
-                  <ul className="list-disc ml-5 mt-2 text-[12px]">
-                    {runtimeWarnings.map((warning) => (
-                      <li key={warning}>{warning}</li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
           {syncDiagnosticsWarning ? (
             <div className="rounded-[12px] border border-blue-200 bg-blue-50 p-4 text-blue-800">
               <p className="font-['Abhaya_Libre:Bold',sans-serif] text-[14px]">Observabilité CMS/public</p>
