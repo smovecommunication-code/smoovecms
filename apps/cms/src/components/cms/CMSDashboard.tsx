@@ -150,7 +150,7 @@ interface ProjectFormState {
 }
 
 
-type RuntimeMode = 'authoritative_remote' | 'degraded_local';
+type RuntimeMode = 'authoritative_remote' | 'backend_unavailable';
 type ServiceFormState = ServiceFormPayloadState;
 
 const SERVICE_ICONS = new Set(['palette', 'code', 'megaphone', 'video', 'box']);
@@ -350,14 +350,14 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
   const [settingsHistory, setSettingsHistory] = useState<SettingsHistoryEntry[]>([]);
   const [savedSettingsSnapshot, setSavedSettingsSnapshot] = useState<CmsSettings | null>(null);
 
-  const [projects, setProjects] = useState(() => projectRepository.getAll());
+  const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [projectsError, setProjectsError] = useState('');
   const [isSavingProject, setIsSavingProject] = useState(false);
   const [projectEditorMode, setProjectEditorMode] = useState<'list' | 'create' | 'edit'>('list');
   const [projectForm, setProjectForm] = useState<ProjectFormState>(EMPTY_PROJECT_FORM);
   const [projectFormErrors, setProjectFormErrors] = useState<Partial<Record<keyof ProjectFormState, string>>>({});
-  const [services, setServices] = useState(() => serviceRepository.getAll());
+  const [services, setServices] = useState<Service[]>([]);
   const [servicesLoading, setServicesLoading] = useState(true);
   const [servicesError, setServicesError] = useState('');
   const [isSavingService, setIsSavingService] = useState(false);
@@ -534,9 +534,8 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       } catch {
         try {
           if (!active) return;
-          setPosts(blogRepository.getAll());
-          setPostsError('Backend indisponible, données locales affichées.');
-          markDegradedMode('Blog: backend indisponible, lecture locale temporaire.');
+          setPostsError('Backend indisponible. Impossible de charger les articles depuis l'API.');
+          markDegradedMode('Blog: backend indisponible.');
         } catch {
           if (!active) return;
           setPostsError('Impossible de charger les articles. Réessayez.');
@@ -567,9 +566,8 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
         syncProjectsFromBackend(backendProjects);
       } catch {
         if (active) {
-          setProjects(projectRepository.getAll());
-          setProjectsError('Backend indisponible, données locales affichées temporairement.');
-          markDegradedMode('Projets: backend indisponible, lecture locale temporaire.');
+          setProjectsError('Backend indisponible. Impossible de charger les projets depuis l'API.');
+          markDegradedMode('Projets: backend indisponible.');
         }
       } finally {
         if (active) setProjectsLoading(false);
@@ -583,9 +581,8 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
         setServices(serviceRepository.replaceAll(backendServices));
       } catch {
         if (active) {
-          setServices(serviceRepository.getAll());
-          setServicesError('Backend indisponible, données locales affichées temporairement.');
-          markDegradedMode('Services: backend indisponible, lecture locale temporaire.');
+          setServicesError('Backend indisponible. Impossible de charger les services depuis l'API.');
+          markDegradedMode('Services: backend indisponible.');
         }
       } finally {
         if (active) setServicesLoading(false);
@@ -596,7 +593,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
         if (!active) return;
         syncMediaFromBackend(backendMedia);
       } catch {
-        markDegradedMode('Médiathèque: backend indisponible, cache local affiché.');
+        markDegradedMode('Médiathèque: backend indisponible.');
       }
 
       try {
@@ -607,10 +604,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
         setSavedHomeContentSnapshot(saved);
       } catch {
         if (active) {
-          const localHome = pageContentRepository.getHomePageContent();
-          setHomeContentForm(localHome);
-          setSavedHomeContentSnapshot(localHome);
-          markDegradedMode('Contenu page: backend indisponible, lecture locale temporaire.');
+          markDegradedMode('Contenu page: backend indisponible.');
         }
       }
 
@@ -621,7 +615,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
           setSavedSettingsSnapshot(settings);
         }
       } catch {
-        markDegradedMode('Paramètres CMS: backend indisponible, valeurs locales conservées.');
+        markDegradedMode('Paramètres CMS: backend indisponible.');
       }
 
       try {
@@ -656,7 +650,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     };
 
     void load().then(() => {
-      setRuntimeMode((prev) => (prev === 'degraded_local' ? prev : 'authoritative_remote'));
+      setRuntimeMode((prev) => (prev === 'backend_unavailable' ? prev : 'authoritative_remote'));
     });
 
     return () => {
@@ -742,7 +736,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
   };
 
   const markDegradedMode = (reason: string) => {
-    setRuntimeMode('degraded_local');
+    setRuntimeMode('backend_unavailable');
     setRuntimeWarnings((prev) => (prev.includes(reason) ? prev : [...prev, reason]));
   };
 
@@ -2309,59 +2303,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
 
 
   const hydrateBackendFromLocalSnapshot = async () => {
-    if (runtimeMode === 'degraded_local') {
-      setSectionError('Mode dégradé actif: hydratation backend bloquée (lecture seule).');
-      return;
-    }
-
-    if (!window.confirm("Hydrater le backend depuis l'instantané local ? Cette action peut écraser des données distantes.")) {
-      return;
-    }
-
-    setIsHydratingBackend(true);
-    setSectionError('');
-    try {
-      const localPosts = blogRepository.getAll();
-      const localProjects = projectRepository.getAll();
-      const localServices = serviceRepository.getAll();
-      const localHome = pageContentRepository.getHomePageContent();
-
-      for (const post of localPosts) {
-        await requestWithRetry(() => saveBackendBlogPost(post), { retries: 1, retryDelayMs: 250 });
-      }
-      for (const project of localProjects) {
-        await requestWithRetry(() => saveBackendProject(project), { retries: 1, retryDelayMs: 250 });
-      }
-      for (const service of localServices) {
-        await requestWithRetry(() => saveBackendService(service), { retries: 1, retryDelayMs: 250 });
-      }
-      await requestWithRetry(() => saveBackendPageContent(localHome), { retries: 1, retryDelayMs: 250 });
-      await requestWithRetry(() => saveBackendSettings({
-        ...settingsValues,
-      }), { retries: 1, retryDelayMs: 250 });
-
-      const [backendPosts, backendProjects, backendServices, backendHome, backendSettings] = await Promise.all([
-        requestWithRetry(() => fetchBackendBlogPosts(), { retries: 1, retryDelayMs: 250 }),
-        requestWithRetry(() => fetchBackendProjects(), { retries: 1, retryDelayMs: 250 }),
-        requestWithRetry(() => fetchBackendServices(), { retries: 1, retryDelayMs: 250 }),
-        requestWithRetry(() => fetchBackendPageContent(), { retries: 1, retryDelayMs: 250 }),
-        requestWithRetry(() => fetchBackendSettings(), { retries: 1, retryDelayMs: 250 }),
-      ]);
-
-      setPosts(backendPosts);
-      backendPosts.forEach((post) => blogRepository.save(post));
-      syncProjectsFromBackend(backendProjects);
-      setServices(serviceRepository.replaceAll(backendServices));
-      setHomeContentForm(pageContentRepository.saveHomePageContent(backendHome));
-      setSettingsValues(backendSettings);
-      markAuthoritativeMode();
-      showSuccess("Hydratation manuelle terminée: backend synchronisé depuis le snapshot local.");
-    } catch {
-      markDegradedMode("Hydratation manuelle échouée: backend toujours indisponible.");
-      setSectionError("Hydratation impossible. Vérifiez la connectivité backend puis réessayez.");
-    } finally {
-      setIsHydratingBackend(false);
-    }
+    setSectionError('Hydratation locale supprimée: le backend et la base de données sont la seule source de vérité.');
   };
 
   const loadAdminUsers = async () => {
@@ -2720,9 +2662,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
           sectionError={sectionError}
           instantPublishingEnabled={instantPublishingEnabled}
           isHydratingBackend={isHydratingBackend}
-          hydrateBackendFromLocalSnapshot={() => {
-            void hydrateBackendFromLocalSnapshot();
-          }}
+          hydrateBackendFromLocalSnapshot={hydrateBackendFromLocalSnapshot}
           saveSettings={saveSettings}
           settingsHasUnsavedChanges={settingsHasUnsavedChanges}
           siteSettingsTitle={siteSettingsTitle}
@@ -2830,11 +2770,11 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
         </header>
 
         <div className="p-8 space-y-6">
-          {runtimeMode === 'degraded_local' ? (
+          {runtimeMode === 'backend_unavailable' ? (
             <div className="rounded-[12px] border border-amber-200 bg-amber-50 p-4 text-amber-800 flex items-start gap-2">
               <AlertTriangle size={18} className="mt-0.5" />
               <div>
-                <p className="font-['Abhaya_Libre:Bold',sans-serif] text-[14px]">Mode dégradé actif (degraded_local)</p>
+                <p className="font-['Abhaya_Libre:Bold',sans-serif] text-[14px]">Backend indisponible</p>
                 <p className="text-[13px]">Le backend n'est pas pleinement disponible. Les données affichées peuvent provenir du cache local et les écritures doivent être considérées non fiables.</p>
                 {runtimeWarnings.length > 0 ? (
                   <ul className="list-disc ml-5 mt-2 text-[12px]">

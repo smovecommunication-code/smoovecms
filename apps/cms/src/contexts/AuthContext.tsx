@@ -149,16 +149,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: message, destination: null };
     }
 
-    const trusted = resolveTrustedSessionUser(localResult.user);
-    setUser(trusted);
-    setSessionState(localResult.session ? {
-      sessionId: localResult.session.sessionId ?? null,
-      authenticatedAt: localResult.session.authenticatedAt ?? null,
-      lastActivityAt: localResult.session.lastActivityAt ?? null,
-      authProvider: localResult.session.authProvider ?? 'local',
-      role: localResult.session.role ?? null,
-    } : null);
-    return finalizeLogin(trusted);
+    const refreshedUser = await refresh();
+    return finalizeLogin(refreshedUser);
   };
 
   const register = async (email: string, password: string, name: string): Promise<AuthActionResult> => {
@@ -173,17 +165,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: message, destination: null };
     }
 
-    const trusted = resolveTrustedSessionUser(localResult.user);
-    setUser(trusted);
-    setSessionState(localResult.session ? {
-      sessionId: localResult.session.sessionId ?? null,
-      authenticatedAt: localResult.session.authenticatedAt ?? null,
-      lastActivityAt: localResult.session.lastActivityAt ?? null,
-      authProvider: localResult.session.authProvider ?? 'local',
-      role: localResult.session.role ?? null,
-    } : null);
     setAuthError(null);
-    return finalizeLogin(trusted);
+    const refreshedUser = await refresh();
+    return finalizeLogin(refreshedUser);
   };
 
   const beginOAuthLogin = (provider: 'google' | 'facebook') => {

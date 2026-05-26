@@ -104,7 +104,7 @@ export interface SettingsHistoryEntry {
 }
 
 export interface SyncDiagnostics {
-  mode: 'authoritative_remote' | 'degraded_local';
+  mode: 'authoritative_remote' | 'backend_unavailable';
   instantPublishingEnabled: boolean;
   invalidMediaReferences: Array<{
     domain: string;
