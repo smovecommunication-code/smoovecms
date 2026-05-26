@@ -2309,6 +2309,11 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
 
 
   const hydrateBackendFromLocalSnapshot = async () => {
+    if (runtimeMode === 'degraded_local') {
+      setSectionError('Mode dégradé actif: hydratation backend bloquée (lecture seule).');
+      return;
+    }
+
     if (!window.confirm("Hydrater le backend depuis l'instantané local ? Cette action peut écraser des données distantes.")) {
       return;
     }
