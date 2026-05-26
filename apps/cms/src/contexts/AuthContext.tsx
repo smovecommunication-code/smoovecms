@@ -120,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (destination === 'cms-forbidden') {
       return {
         success: false,
-        error: 'Connexion réussie, mais ce compte ne possède pas les droits administrateur CMS.',
+        error: 'Accès refusé au CMS',
         destination,
       };
     }
