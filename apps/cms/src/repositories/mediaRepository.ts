@@ -47,10 +47,17 @@ export interface MediaRepository {
 
 
 class LocalMediaRepository implements MediaRepository {
+  private memoryFiles: MediaFile[] = [];
+
+  private hasStorage(): boolean {
+    return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+  }
+
   getAll(): MediaFile[] {
-    const files = readFromStorage(MEDIA_STORAGE_KEY, isMediaFileArray, []);
+    const files = this.hasStorage() ? readFromStorage(MEDIA_STORAGE_KEY, isMediaFileArray, []) : this.memoryFiles;
     const normalized = files.map(normalizeMedia);
-    if (JSON.stringify(files) !== JSON.stringify(normalized)) {
+    this.memoryFiles = normalized;
+    if (this.hasStorage() && JSON.stringify(files) !== JSON.stringify(normalized)) {
       writeToStorage(MEDIA_STORAGE_KEY, normalized);
     }
     return normalized;
@@ -75,14 +82,14 @@ class LocalMediaRepository implements MediaRepository {
       files.push(trustedFile);
     }
 
+    this.memoryFiles = files;
     writeToStorage(MEDIA_STORAGE_KEY, files);
   }
 
   delete(id: string): void {
-    writeToStorage(
-      MEDIA_STORAGE_KEY,
-      this.getAll().filter((file) => file.id !== id),
-    );
+    const nextFiles = this.getAll().filter((file) => file.id !== id);
+    this.memoryFiles = nextFiles;
+    writeToStorage(MEDIA_STORAGE_KEY, nextFiles);
   }
 
   upload(data: MediaUploadInput): Promise<MediaFile> {
@@ -150,6 +157,7 @@ class LocalMediaRepository implements MediaRepository {
 
   replaceAll(files: MediaFile[]): MediaFile[] {
     const normalized = files.filter(isMediaFile).map(normalizeMedia);
+    this.memoryFiles = normalized;
     writeToStorage(MEDIA_STORAGE_KEY, normalized);
     return normalized;
   }

@@ -206,7 +206,7 @@ const EMPTY_PROJECT_FORM: ProjectFormState = {
   client: '',
   category: '',
   year: new Date().getFullYear().toString(),
-  status: 'draft',
+  status: 'published',
   featured: false,
   description: '',
   challenge: '',
@@ -775,13 +775,13 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
 
   const validateBlogForm = (form: BlogFormState) => {
     const errors: Partial<Record<keyof BlogFormState, string>> = {};
-    if (!form.title.trim()) errors.title = 'Veuillez saisir un titre de projet.';
+    if (!form.title.trim()) errors.title = 'Veuillez saisir un titre d’article.';
     if (!normalizeSlug(form.slug, form.title)) errors.slug = 'Le slug est requis.';
     if (!form.featuredImage.trim()) errors.featuredImage = 'L’image vedette est requise pour les cartes.';
     if (form.featuredImage.trim() && !isValidMediaField(form.featuredImage)) {
       errors.featuredImage = 'Utilisez une URL valide ou une référence media:asset-id existante.';
     }
-    if (form.socialImage.trim() && !isValidMediaField(form.socialImage)) {
+    if (form.socialImage.trim() && !isValidProjectMediaField(form.socialImage)) {
       errors.socialImage = 'L’image sociale doit être une URL valide ou media:asset-id existant.';
     }
     if (form.seoDescription && form.seoDescription.trim().length > 320) {
@@ -1151,21 +1151,24 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
 
   const validateProjectForm = (form: ProjectFormState) => {
     const errors: Partial<Record<keyof ProjectFormState, string>> = {};
-    if (!form.title.trim()) errors.title = 'Veuillez saisir un titre de projet.';
+    const isValidProjectMediaField = (value: string) => {
+      const normalized = value.trim();
+      return Boolean(normalized) && (isMediaReference(normalized) || isValidHttpUrl(normalized));
+    };
+    if (!form.title.trim()) errors.title = 'Veuillez saisir le titre du projet.';
     if (form.slug.trim() && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(form.slug.trim())) {
       errors.slug = 'Le slug doit contenir uniquement des lettres minuscules, chiffres et tirets.';
     }
     if (form.year.trim() && !/^\d{4}$/.test(form.year.trim())) {
       errors.year = 'L’année doit être sur 4 chiffres (ex: 2026).';
     }
-    if (!form.cardImage.trim()) errors.cardImage = 'Veuillez ajouter une image ou un média pour ce projet.';
-    if (form.cardImage.trim() && !isValidMediaField(form.cardImage)) {
+    if (form.cardImage.trim() && !isValidProjectMediaField(form.cardImage)) {
       errors.cardImage = 'Image carte invalide. Utilisez une URL valide ou media:asset-id existant.';
     }
-    if (form.heroImage.trim() && !isValidMediaField(form.heroImage)) {
+    if (form.heroImage.trim() && !isValidProjectMediaField(form.heroImage)) {
       errors.heroImage = 'Image hero invalide. Utilisez une URL valide ou media:asset-id existant.';
     }
-    if (form.socialImage.trim() && !isValidMediaField(form.socialImage)) {
+    if (form.socialImage.trim() && !isValidProjectMediaField(form.socialImage)) {
       errors.socialImage = 'Image sociale invalide. Utilisez une URL valide ou media:asset-id existant.';
     }
     if (form.caseStudyLink.trim() && !/^https?:\/\//i.test(form.caseStudyLink.trim())) {
@@ -1176,18 +1179,11 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     }
 
     const galleryRefs = form.galleryImages.split('\n').map((line) => line.trim()).filter(Boolean);
-    const invalidGallery = galleryRefs.find((entry) => !isValidMediaField(entry));
+    const invalidGallery = galleryRefs.find((entry) => !isValidProjectMediaField(entry));
     if (invalidGallery) {
       errors.galleryImages = `Référence média invalide: ${invalidGallery}`;
     }
 
-    const testimonialFields = [form.testimonialText, form.testimonialAuthor, form.testimonialPosition].map((value) => value.trim());
-    const hasPartialTestimonial = testimonialFields.some(Boolean) && testimonialFields.some((value) => !value);
-    if (hasPartialTestimonial) {
-      errors.testimonialText = 'Complétez le témoignage (texte, auteur et poste) ou laissez les champs vides.';
-    }
-
-    
     return errors;
   };
 
@@ -1281,8 +1277,13 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       solution: projectForm.solution.trim(),
       results: projectForm.results.split('\n').map((line) => line.trim()).filter(Boolean),
       tags: projectForm.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
-      mainImage: heroImage || projectForm.cardImage.trim(),
+      image: projectForm.cardImage.trim() || heroImage,
+      imageUrl: projectForm.cardImage.trim() || heroImage,
+      media: projectForm.cardImage.trim() || heroImage,
+      cardImage: projectForm.cardImage.trim() || heroImage,
+      heroImage: heroImage || projectForm.cardImage.trim(),
       featuredImage: projectForm.cardImage.trim() || heroImage,
+      mainImage: heroImage || projectForm.cardImage.trim(),
       mediaRoles: {
         cardImage: projectForm.cardImage.trim() || heroImage,
         heroImage: heroImage || projectForm.cardImage.trim(),
@@ -1424,7 +1425,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
 
   const validateServiceForm = (form: ServiceFormState, mode: 'create' | 'edit') => {
     const errors: Partial<Record<keyof ServiceFormState, string>> = {};
-    if (!form.title.trim()) errors.title = 'Veuillez saisir un titre de projet.';
+    if (!form.title.trim()) errors.title = 'Veuillez saisir un titre de service.';
     if (mode === 'create' && !form.description.trim()) errors.description = 'La description est requise à la création.';
     if (mode === 'create' && !form.features.trim()) errors.features = 'Ajoutez au moins une fonctionnalité à la création.';
     if (mode === 'create' && form.icon.trim() && !SERVICE_ICONS.has(form.icon.trim())) {
@@ -1583,6 +1584,37 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     }
   };
 
+  const uploadFileToMediaLibrary = async (file: File) => {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result !== 'string') {
+          reject(new Error('Invalid media payload'));
+          return;
+        }
+        resolve(reader.result);
+      };
+      reader.onerror = () => reject(new Error('Failed to read media file'));
+      reader.readAsDataURL(file);
+    });
+
+    const uploaded = await requestWithRetry(
+      () =>
+        uploadBackendMediaFile({
+          filename: file.name,
+          title: file.name,
+          dataUrl,
+          alt: file.name,
+        }),
+      { retries: 1, retryDelayMs: 250 },
+    );
+
+    const refreshedMedia = await requestWithRetry(() => fetchBackendMediaFiles(), { retries: 1, retryDelayMs: 250 });
+    syncMediaFromBackend(refreshedMedia);
+    setSelectedMediaId(uploaded.id);
+    return uploaded;
+  };
+
   const handleMediaUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -1591,36 +1623,36 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     setIsUploadingMedia(true);
 
     try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          if (typeof reader.result !== 'string') {
-            reject(new Error('Invalid media payload'));
-            return;
-          }
-          resolve(reader.result);
-        };
-        reader.onerror = () => reject(new Error('Failed to read media file'));
-        reader.readAsDataURL(file);
-      });
-
-      const uploaded = await requestWithRetry(
-        () =>
-          uploadBackendMediaFile({
-            filename: file.name,
-            title: file.name,
-            dataUrl,
-            alt: file.name,
-          }),
-        { retries: 1, retryDelayMs: 250 },
-      );
-
-      const refreshedMedia = await requestWithRetry(() => fetchBackendMediaFiles(), { retries: 1, retryDelayMs: 250 });
-      syncMediaFromBackend(refreshedMedia);
-      setSelectedMediaId(uploaded.id);
+      await uploadFileToMediaLibrary(file);
       showSuccess('Média uploadé et persisté sur le serveur.');
     } catch (error) {
       setMediaUploadError('Upload média impossible (format/taille ou backend indisponible).');
+    } finally {
+      setIsUploadingMedia(false);
+      event.currentTarget.value = '';
+    }
+  };
+
+  const handleProjectMediaUpload = async (field: 'cardImage' | 'heroImage' | 'socialImage' | 'galleryImages', event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setMediaUploadError('');
+    setIsUploadingMedia(true);
+
+    try {
+      const uploaded = await uploadFileToMediaLibrary(file);
+      const reference = toMediaReferenceValue(uploaded.id);
+      setProjectForm((prev) => {
+        if (field === 'galleryImages') {
+          const nextGallery = [...prev.galleryImages.split('\n').map((line) => line.trim()).filter(Boolean), reference].join('\n');
+          return { ...prev, galleryImages: nextGallery, imageAlt: prev.imageAlt.trim() || uploaded.alt || uploaded.name || prev.title };
+        }
+        return { ...prev, [field]: reference, imageAlt: prev.imageAlt.trim() || uploaded.alt || uploaded.name || prev.title };
+      });
+      showSuccess('Média uploadé dans la médiathèque et lié au projet.');
+    } catch (error) {
+      setMediaUploadError('Upload média projet impossible (format/taille ou backend indisponible).');
     } finally {
       setIsUploadingMedia(false);
       event.currentTarget.value = '';
@@ -1765,6 +1797,60 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
   };
 
 
+  const renderProjectMediaPicker = (
+    field: 'cardImage' | 'heroImage' | 'socialImage' | 'galleryImages',
+    label: string,
+    value: string,
+    previewLabel: string,
+  ) => {
+    const isGallery = field === 'galleryImages';
+    const assignReference = (reference: string) => {
+      setProjectForm((prev) => {
+        if (isGallery) {
+          const nextGallery = reference
+            ? [...prev.galleryImages.split('\n').map((line) => line.trim()).filter(Boolean), reference].join('\n')
+            : '';
+          return { ...prev, galleryImages: nextGallery };
+        }
+        return { ...prev, [field]: reference };
+      });
+    };
+
+    return (
+      <div className="rounded-[10px] border border-[#e4edf1] bg-[#fcfeff] p-3 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[13px] font-semibold text-[#273a41]">{label}</p>
+            <p className="text-[12px] text-[#6f7f85]">Choisissez un média existant, uploadez un fichier local, ou videz ce champ optionnel.</p>
+          </div>
+          <AdminButton type="button" size="sm" onClick={() => assignReference('')}>Effacer</AdminButton>
+        </div>
+        {isGallery ? (
+          <textarea value={value} onChange={(event) => setProjectForm((prev) => ({ ...prev, galleryImages: event.target.value }))} className="w-full min-h-[80px] rounded-[10px] border border-[#d8e4e8] px-3 py-2" placeholder="media:asset-1\nmedia:asset-2" />
+        ) : (
+          <input value={value} onChange={(event) => setProjectForm((prev) => ({ ...prev, [field]: event.target.value }))} className="w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" placeholder="media:asset-id" />
+        )}
+        <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+          <select value="" onChange={(event) => { if (event.target.value) assignReference(event.target.value); }} className="rounded-[10px] border border-[#d8e4e8] px-3 py-2 text-[13px]">
+            <option value="">Choisir depuis la médiathèque…</option>
+            {mediaFiles.filter((file) => file.type === 'image').map((file) => (
+              <option key={file.id} value={toMediaReferenceValue(file.id)}>{file.label || file.name}</option>
+            ))}
+          </select>
+          <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-[10px] border border-dashed border-[#00b3e8] px-3 py-2 text-[13px] text-[#007fa3] hover:bg-[#f0fbff]">
+            <Upload size={14} /> Uploader
+            <input type="file" accept="image/*" onChange={(event) => { void handleProjectMediaUpload(field, event); }} className="hidden" disabled={isUploadingMedia} />
+          </label>
+        </div>
+        {!isGallery ? renderCmsPreviewCard(previewLabel, value, projectForm.imageAlt || projectForm.title || 'Projet', 'project cover image') : null}
+        {field === 'cardImage' && projectFormErrors.cardImage ? <p className="text-[12px] text-red-600">{projectFormErrors.cardImage}</p> : null}
+        {field === 'heroImage' && projectFormErrors.heroImage ? <p className="text-[12px] text-red-600">{projectFormErrors.heroImage}</p> : null}
+        {field === 'socialImage' && projectFormErrors.socialImage ? <p className="text-[12px] text-red-600">{projectFormErrors.socialImage}</p> : null}
+        {field === 'galleryImages' && projectFormErrors.galleryImages ? <p className="text-[12px] text-red-600">{projectFormErrors.galleryImages}</p> : null}
+      </div>
+    );
+  };
+
   const renderProjectForm = () => {
     const title = projectEditorMode === 'create' ? 'Créer un projet' : 'Modifier un projet';
     const projectGroupHasErrors = (keys: Array<keyof ProjectFormState>) => keys.some((key) => Boolean(projectFormErrors[key]));
@@ -1802,65 +1888,16 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
           </div>
 
           <div className="rounded-[12px] border border-[#eef3f5] p-4 space-y-3">
-            <h4 className="text-[16px] font-semibold text-[#273a41]">Médias</h4>
-            <p className="text-[12px] text-[#6f7f85]">Visuels affichés sur les cartes projets, la page détail et les aperçus sociaux.</p>
-            <label className="block">
-              <span className="text-[14px] text-[#6f7f85]">Image / média principal (requis)</span>
-              <input value={projectForm.cardImage} onChange={(event) => setProjectForm((prev) => ({ ...prev, cardImage: event.target.value }))} className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" placeholder="https://... ou media:asset-id" />
-              {projectFormErrors.cardImage ? <p className="text-[12px] text-red-600 mt-1">{projectFormErrors.cardImage}</p> : null}
-              <p className="text-[12px] text-[#6f7f85] mt-1">Utilisée sur les cartes du portfolio.</p>
-            </label>
-            <label className="block">
-              <span className="text-[14px] text-[#6f7f85]">Image hero détail</span>
-              <input value={projectForm.heroImage} onChange={(event) => setProjectForm((prev) => ({ ...prev, heroImage: event.target.value }))} className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" placeholder="URL ou media:asset-id (fallback: image carte)" />
-              {projectFormErrors.heroImage ? <p className="text-[12px] text-red-600 mt-1">{projectFormErrors.heroImage}</p> : null}
-            </label>
-            <label className="block">
-              <span className="text-[14px] text-[#6f7f85]">Image sociale (partages)</span>
-              <input value={projectForm.socialImage} onChange={(event) => setProjectForm((prev) => ({ ...prev, socialImage: event.target.value }))} className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" placeholder="URL ou media:asset-id (fallback: image carte)" />
-              {projectFormErrors.socialImage ? <p className="text-[12px] text-red-600 mt-1">{projectFormErrors.socialImage}</p> : null}
-            </label>
+            <h4 className="text-[16px] font-semibold text-[#273a41]">Médias optionnels</h4>
+            <p className="text-[12px] text-[#6f7f85]">Chaque champ accepte une référence stable <code>media:&lt;id&gt;</code>, un choix médiathèque, ou un upload local automatiquement enregistré dans la médiathèque.</p>
+            {renderProjectMediaPicker('cardImage', 'Image carte / principale (optionnelle)', projectForm.cardImage, 'Carte projet')}
+            {renderProjectMediaPicker('heroImage', 'Image hero détail (optionnelle)', projectForm.heroImage, 'Hero détail projet')}
+            {renderProjectMediaPicker('socialImage', 'Image sociale (optionnelle)', projectForm.socialImage, 'Social / partage')}
             <label className="block">
               <span className="text-[14px] text-[#6f7f85]">Texte alternatif image</span>
               <input value={projectForm.imageAlt} onChange={(event) => setProjectForm((prev) => ({ ...prev, imageAlt: event.target.value }))} className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" />
             </label>
-            <label className="block">
-              <span className="text-[14px] text-[#6f7f85]">Galerie d’images (une référence par ligne)</span>
-              <textarea value={projectForm.galleryImages} onChange={(event) => setProjectForm((prev) => ({ ...prev, galleryImages: event.target.value }))} className="mt-1 w-full min-h-[90px] rounded-[10px] border border-[#d8e4e8] px-3 py-2" placeholder="media:asset-1\nhttps://..." />
-            </label>
-            {isProjectMediaReference(projectForm.cardImage) ? <p className="text-[12px] text-[#6f7f85]">Référence média liée (carte): {projectForm.cardImage}</p> : null}
-            {mediaFiles.length > 0 ? (
-              <div className="rounded-[10px] bg-[#f5f9fa] p-3">
-                <p className="text-[13px] text-[#6f7f85] mb-2">Sélecteur média rapide</p>
-                <div className="flex flex-wrap gap-2">
-                  {mediaFiles.slice(0, 6).map((file) => (
-                    <button type="button" key={file.id} onClick={() => setProjectForm((prev) => ({ ...prev, cardImage: toMediaReferenceValue(file.id), heroImage: prev.heroImage.trim() || toMediaReferenceValue(file.id), socialImage: prev.socialImage.trim() || toMediaReferenceValue(file.id), imageAlt: prev.imageAlt.trim() || file.alt || prev.title || file.name }))} className="text-[12px] border border-[#d8e4e8] rounded-full px-3 py-1 hover:border-[#00b3e8]">
-                      {file.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            <div className="grid gap-3 md:grid-cols-2">
-              {renderCmsPreviewCard(
-                'Carte projet',
-                projectForm.cardImage,
-                projectForm.imageAlt || projectForm.title || 'Projet',
-                'project cover image',
-              )}
-              {renderCmsPreviewCard(
-                'Hero détail projet',
-                projectForm.heroImage || projectForm.cardImage,
-                projectForm.imageAlt || projectForm.title || 'Projet',
-                'project cover image',
-              )}
-              {renderCmsPreviewCard(
-                'Social / partage',
-                projectForm.socialImage || projectForm.cardImage || projectForm.heroImage,
-                projectForm.imageAlt || projectForm.title || 'Projet',
-                'project cover image',
-              )}
-            </div>
+            {renderProjectMediaPicker('galleryImages', 'Galerie d’images (optionnelle)', projectForm.galleryImages, 'Galerie')}
             {projectForm.galleryImages.trim() ? (
               <div className="rounded-[10px] border border-[#e4edf1] bg-[#fcfeff] p-3">
                 <p className="mb-2 text-[12px] font-semibold text-[#273a41]">Galerie (ordre actuel)</p>
@@ -1877,10 +1914,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
                 </div>
               </div>
             ) : null}
-            <label className="block">
-              <span className="text-[13px] text-[#6f7f85]">Importer une image projet</span>
-              <input type="file" accept="image/*" onChange={(event) => { void handleMediaUpload(event); }} className="mt-1 w-full rounded-[10px] border border-dashed border-[#d8e4e8] px-3 py-2 text-[13px]" />
-            </label>
+            {isProjectMediaReference(projectForm.cardImage) ? <p className="text-[12px] text-[#6f7f85]">Référence média liée (carte): {projectForm.cardImage}</p> : null}
           </div>
 
           <div className="rounded-[12px] border border-[#eef3f5] p-4 space-y-3">

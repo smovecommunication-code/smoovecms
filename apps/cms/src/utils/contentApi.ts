@@ -400,11 +400,15 @@ export async function fetchBackendMediaFiles(): Promise<MediaFile[]> {
 
 
 export async function uploadBackendMediaFile(payload: MediaUploadPayload): Promise<MediaFile> {
-  const body = await request<{ mediaFile: MediaFile }>('/media/upload', {
+  const body = await request<{ mediaFile?: MediaFile; media?: MediaFile }>('/media/upload', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
-  return body.data!.mediaFile;
+  const uploaded = body.data?.mediaFile || body.data?.media;
+  if (!uploaded) {
+    throw new ContentApiError('Missing uploaded media in API response.', 'MEDIA_UPLOAD_RESPONSE_INVALID', 502);
+  }
+  return uploaded;
 }
 
 export async function saveBackendMediaFile(mediaFile: MediaFile): Promise<MediaFile> {
