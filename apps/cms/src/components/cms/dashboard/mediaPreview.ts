@@ -1,5 +1,6 @@
 import type { MediaFile } from '../../../domain/contentSchemas';
-import { isMediaReferenceValue, mediaIdFromReference, resolveAssetReference, resolveRenderableMediaUrl } from '../../../features/media/assetReference';
+import { isMediaReferenceValue, mediaIdFromReference, resolveAssetReference } from '../../../features/media/assetReference';
+import { resolveMediaRecordUrl } from '../../../utils/mediaResolver';
 
 export type CmsPreviewState = 'resolvable' | 'unresolved' | 'missing';
 export type CmsPreviewSource = 'media-reference' | 'direct-url' | 'empty';
@@ -17,7 +18,7 @@ export interface CmsResolvedPreview {
   mediaId?: string;
 }
 
-const isRenderableUrl = (value: string): boolean => /^https?:\/\//.test(value) || value.startsWith('data:image/') || value.startsWith('blob:') || value.startsWith('/');
+const isRenderableUrl = (value: string): boolean => /^https?:\/\//.test(value) || value.startsWith('data:image/');
 
 export function resolveCmsPreviewReference(reference: string | undefined, fallbackAlt: string, fallbackQuery: string): CmsResolvedPreview {
   const normalizedReference = (reference || '').trim();
@@ -75,7 +76,7 @@ export function resolveMediaLibraryThumbnail(file: MediaFile): { src: string | n
     return { src: null, kind: 'non-image' };
   }
 
-  const src = resolveRenderableMediaUrl(file.thumbnailUrl?.trim() || file.url?.trim() || file.publicPath?.trim() || (file.filename ? `/uploads/${file.filename}` : ''));
+  const src = resolveMediaRecordUrl(file);
   if (!src) {
     return { src: null, kind: 'missing' };
   }

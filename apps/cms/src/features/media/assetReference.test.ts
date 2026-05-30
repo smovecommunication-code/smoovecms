@@ -7,14 +7,16 @@ describe('resolveRenderableMediaUrl', () => {
   });
 
   it('resolves root-relative media urls against API origin', () => {
-    expect(resolveRenderableMediaUrl('/uploads/media/a.jpg', 'https://api.example.com/v1/content')).toBe('https://api.example.com/uploads/media/a.jpg');
+    expect(resolveRenderableMediaUrl('/uploads/media/a.jpg')).toBe('https://smoveapi-1.onrender.com/uploads/media/a.jpg');
   });
 
   it('resolves path-like relative media urls against API origin', () => {
-    expect(resolveRenderableMediaUrl('uploads/media/a.jpg', 'https://api.example.com/v1/content')).toBe('https://api.example.com/uploads/media/a.jpg');
+    expect(resolveRenderableMediaUrl('uploads/media/a.jpg')).toBe('https://smoveapi-1.onrender.com/uploads/media/a.jpg');
   });
 
-  it('does not rewrite non-url labels', () => {
-    expect(resolveRenderableMediaUrl('project cover image', 'https://api.example.com/v1/content')).toBe('project cover image');
+  it('does not render non-url labels, blob URLs, or local disk paths', () => {
+    expect(resolveRenderableMediaUrl('project cover image')).toBe('');
+    expect(resolveRenderableMediaUrl('blob:https://example.com/asset')).toBe('');
+    expect(resolveRenderableMediaUrl('/tmp/uploads/a.jpg')).toBe('');
   });
 });

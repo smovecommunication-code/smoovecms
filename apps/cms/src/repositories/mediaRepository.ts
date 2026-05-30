@@ -1,7 +1,12 @@
 import { isMediaFile, isMediaFileArray, type MediaFile, type MediaType } from '../domain/contentSchemas';
 import { readFromStorage, writeToStorage } from './storage/localStorageStore';
+import { resolveMediaRecordUrl, resolveMediaUrl } from '../utils/mediaResolver';
 
 const MEDIA_STORAGE_KEY = 'smove_media_files';
+const preserveLocalDataUrl = (value: string | undefined): string => {
+  const normalized = `${value || ''}`.trim();
+  return normalized.startsWith('data:') ? normalized : '';
+};
 
 export interface MediaUploadInput {
   name: string;
@@ -20,6 +25,8 @@ const normalizeMedia = (file: MediaFile): MediaFile => {
 
   return {
     ...file,
+    url: resolveMediaRecordUrl(file) || resolveMediaUrl(file.url) || preserveLocalDataUrl(file.url),
+    thumbnailUrl: resolveMediaRecordUrl(file) || resolveMediaUrl(file.thumbnailUrl || file.url) || preserveLocalDataUrl(file.thumbnailUrl || file.url),
     name: normalizedName,
     title: file.title?.trim() || normalizedName,
     label: file.label?.trim() || normalizedName,

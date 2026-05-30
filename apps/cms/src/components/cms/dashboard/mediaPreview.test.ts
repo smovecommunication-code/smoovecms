@@ -86,7 +86,26 @@ describe('mediaPreview', () => {
       tags: [],
     });
 
-    expect(preview).toEqual({ src: 'https://cdn.example.com/hero-thumb.jpg', kind: 'image' });
+    expect(preview).toEqual({ src: 'https://cdn.example.com/hero.jpg', kind: 'image' });
+  });
+
+
+
+  it('absolutizes upload public paths for media library image cards', () => {
+    const preview = resolveMediaLibraryThumbnail({
+      id: 'media-public-path',
+      type: 'image',
+      url: '',
+      publicPath: '/uploads/2026/05/hero.png',
+      filename: '2026/05/hero.png',
+      name: 'hero.png',
+      size: 3000,
+      uploadedDate: '2026-05-30T10:00:00.000Z',
+      uploadedBy: 'editor',
+      tags: [],
+    });
+
+    expect(preview).toEqual({ src: 'https://smoveapi-1.onrender.com/uploads/2026/05/hero.png', kind: 'image' });
   });
 
   it('preserves non-image fallback in media library without broken image tags', () => {
