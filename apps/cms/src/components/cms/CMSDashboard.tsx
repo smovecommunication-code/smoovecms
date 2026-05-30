@@ -1706,6 +1706,32 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     }
   };
 
+
+  const handleBlogMediaUpload = async (field: 'featuredImage' | 'socialImage', event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const file = input?.files?.[0];
+    if (!file) return;
+
+    setMediaUploadError('');
+    setIsUploadingMedia(true);
+
+    try {
+      const uploaded = await uploadFileToMediaLibrary(file);
+      const reference = toMediaReferenceValue(uploaded.id);
+      setBlogForm((prev) => ({
+        ...prev,
+        [field]: reference,
+        ...(field === 'featuredImage' && !prev.socialImage.trim() ? { socialImage: reference } : {}),
+      }));
+      showSuccess('Image uploadée dans la médiathèque et liée à l’article.');
+    } catch {
+      setMediaUploadError('Upload image blog impossible (format/taille ou backend indisponible).');
+    } finally {
+      setIsUploadingMedia(false);
+      if (input) input.value = '';
+    }
+  };
+
   const uploadHeroBackgroundMedia = async (
     itemId: string,
     field: 'media' | 'desktopMedia' | 'tabletMedia' | 'mobileMedia' | 'videoMedia',
@@ -2128,6 +2154,50 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     );
   };
 
+
+  const renderBlogMediaPicker = (
+    field: 'featuredImage' | 'socialImage',
+    label: string,
+    value: string,
+    previewLabel: string,
+  ) => {
+    const assignReference = (reference: string) => {
+      setBlogForm((prev) => ({ ...prev, [field]: reference }));
+    };
+
+    return (
+      <div className="rounded-[10px] border border-[#e4edf1] bg-[#fcfeff] p-3 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[13px] font-semibold text-[#273a41]">{label}</p>
+            <p className="text-[12px] text-[#6f7f85]">Uploadez, choisissez dans la médiathèque, collez une URL externe, ou effacez.</p>
+          </div>
+          <AdminButton type="button" size="sm" onClick={() => assignReference('')}>Effacer</AdminButton>
+        </div>
+        <input
+          value={value}
+          onChange={(event) => assignReference(event.target.value)}
+          className="w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2"
+          placeholder="media:asset-id ou https://..."
+        />
+        <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+          <select value="" onChange={(event) => { if (event.target.value) assignReference(event.target.value); }} className="rounded-[10px] border border-[#d8e4e8] px-3 py-2 text-[13px]">
+            <option value="">Choisir depuis la médiathèque…</option>
+            {mediaFiles.filter((file) => file.type === 'image').map((file) => (
+              <option key={file.id} value={toMediaReferenceValue(file.id)}>{file.label || file.name}</option>
+            ))}
+          </select>
+          <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-[10px] border border-dashed border-[#00b3e8] px-3 py-2 text-[13px] text-[#007fa3] hover:bg-[#f0fbff]">
+            <Upload size={14} /> Uploader
+            <input type="file" accept="image/*" onChange={(event) => { void handleBlogMediaUpload(field, event); }} className="hidden" disabled={isUploadingMedia} />
+          </label>
+        </div>
+        {field === 'featuredImage' && blogFormErrors.featuredImage ? <p className="text-[12px] text-red-600 mt-1">{blogFormErrors.featuredImage}</p> : null}
+        {renderCmsPreviewCard(previewLabel, value, blogForm.title || 'Article', 'blog article image')}
+      </div>
+    );
+  };
+
   const renderBlogForm = () => {
     const title = blogEditorMode === 'create' ? 'Créer un article' : 'Modifier un article';
     const blogGroupHasErrors = (keys: Array<keyof BlogFormState>) => keys.some((key) => Boolean(blogFormErrors[key]));
@@ -2205,63 +2275,9 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
             <label className="block"><span className="text-[14px] text-[#6f7f85]">SEO title</span><input value={blogForm.seoTitle} onChange={(event) => setBlogForm((prev) => ({ ...prev, seoTitle: event.target.value }))} className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" /><p className="text-[12px] text-[#6f7f85] mt-1">Utilisé dans les résultats de recherche et partages.</p></label>
             <label className="block"><span className="text-[14px] text-[#6f7f85]">SEO description</span><textarea value={blogForm.seoDescription} onChange={(event) => setBlogForm((prev) => ({ ...prev, seoDescription: event.target.value }))} className="mt-1 w-full min-h-[80px] rounded-[10px] border border-[#d8e4e8] px-3 py-2" />{blogFormErrors.seoDescription ? <p className="text-[12px] text-red-600 mt-1">{blogFormErrors.seoDescription}</p> : null}</label>
             <label className="block"><span className="text-[14px] text-[#6f7f85]">Canonical slug (optionnel)</span><input value={blogForm.canonicalSlug} onChange={(event) => setBlogForm((prev) => ({ ...prev, canonicalSlug: event.target.value }))} className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" /></label>
-          <label className="block">
-            <span className="text-[14px] text-[#6f7f85]">Image sociale (aperçus)</span>
-            <input
-              value={blogForm.socialImage}
-              onChange={(event) => setBlogForm((prev) => ({ ...prev, socialImage: event.target.value }))}
-              className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2"
-              placeholder="https://... ou media:asset-id"
-            />
-            <p className="text-[12px] text-[#6f7f85] mt-1">Utilisée pour les partages sociaux. Fallback: image vedette.</p>
-          </label>
-          <label className="block">
-            <span className="text-[14px] text-[#6f7f85]">Image vedette (carte + hero détail)</span>
-            <input
-              value={blogForm.featuredImage}
-              onChange={(event) => setBlogForm((prev) => ({ ...prev, featuredImage: event.target.value }))}
-              className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2"
-            />
-            {blogFormErrors.featuredImage ? <p className="text-[12px] text-red-600 mt-1">{blogFormErrors.featuredImage}</p> : null}
-            {isMediaReference(blogForm.featuredImage) ? (
-              <p className="text-[12px] text-[#6f7f85] mt-1">Référence média liée: {blogForm.featuredImage}</p>
-            ) : null}
-          </label>
-          {mediaFiles.length > 0 ? (
-            <div className="rounded-[10px] bg-[#f5f9fa] p-3">
-              <p className="text-[13px] text-[#6f7f85] mb-2">Sélecteur média (même contrat Blog/Projet: media:asset-id)</p>
-              <div className="flex flex-wrap gap-2">
-                {mediaFiles.slice(0, 6).map((file) => (
-                  <button
-                    type="button"
-                    key={file.id}
-                    onClick={() =>
-                      setBlogForm((prev) => ({
-                        ...prev,
-                        featuredImage: toMediaReferenceValue(file.id),
-                        socialImage: toMediaReferenceValue(file.id),
-                      }))
-                    }
-                    className="text-[12px] border border-[#d8e4e8] rounded-full px-3 py-1 hover:border-[#00b3e8]"
-                  >
-                    {file.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
-          <label className="block">
-            <span className="text-[13px] text-[#6f7f85]">Importer une image d’article</span>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(event) => {
-                void handleMediaUpload(event);
-              }}
-              className="mt-1 w-full rounded-[10px] border border-dashed border-[#d8e4e8] px-3 py-2 text-[13px]"
-            />
-            <p className="text-[12px] text-[#6f7f85] mt-1">Après upload, sélectionnez le média ci-dessus pour le lier à l’article.</p>
-          </label>
+          {renderBlogMediaPicker('featuredImage', 'Image vedette (carte + hero détail)', blogForm.featuredImage, 'Image vedette (carte + hero)')}
+          {renderBlogMediaPicker('socialImage', 'Image sociale (aperçus)', blogForm.socialImage, 'Image sociale (partage)')}
+          {mediaUploadError ? <AdminWarningState label={mediaUploadError} /> : null}
 
           {(blogForm.featuredImage || blogForm.socialImage) ? (
             <div className="rounded-[10px] border border-[#eef3f5] px-3 py-3 text-[12px] text-[#6f7f85] space-y-3">
