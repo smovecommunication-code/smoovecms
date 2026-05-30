@@ -269,6 +269,7 @@ interface MediaSectionProps {
   canEditContent: boolean;
   mediaUploadError: string;
   filteredMediaFiles: MediaFile[];
+  loadMediaFromBackend: () => Promise<void>;
   selectedMediaId: string;
   selectedMedia?: MediaFile;
   authoritativeReferences: BackendMediaReference[];
@@ -288,6 +289,7 @@ export function MediaSection({
   canEditContent,
   mediaUploadError,
   filteredMediaFiles,
+  loadMediaFromBackend,
   selectedMediaId,
   selectedMedia,
   authoritativeReferences,
@@ -309,6 +311,7 @@ export function MediaSection({
       <AdminActionBar>
         <input value={mediaQuery} onChange={(event) => setMediaQuery(event.target.value)} placeholder="Rechercher un média (nom, alt, tag)…" className={`w-full max-w-[420px] ${ADMIN_INPUT_CLASS}`} />
         <label className="inline-flex cursor-pointer items-center gap-2 rounded-[10px] border border-[#00b3e8] bg-[#00b3e8] px-4 py-2 text-[14px] text-white transition-colors hover:bg-[#009dcd]"><Upload size={14} /> {isUploadingMedia ? 'Upload…' : 'Uploader un fichier'}<input type="file" className="hidden" onChange={(event) => { void handleMediaUpload(event); }} disabled={!canEditContent || isUploadingMedia} /></label>
+        <AdminButton type="button" onClick={() => void loadMediaFromBackend()} disabled={isUploadingMedia}><RotateCcw size={15} /> Rafraîchir backend</AdminButton>
         <AdminButton type="button" onClick={() => { setMediaQuery(''); setSelectedMediaId(''); }}>Réinitialiser</AdminButton>
       </AdminActionBar>
       {mediaUploadError ? <AdminErrorState label={mediaUploadError} /> : null}

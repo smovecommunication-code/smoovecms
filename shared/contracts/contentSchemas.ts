@@ -90,6 +90,8 @@ export interface Project {
   images: string[];
   featured?: boolean;
   status?: 'draft' | 'in_review' | 'published' | 'archived';
+  archived?: boolean;
+  deleted?: boolean;
   reviewedAt?: string;
   reviewedBy?: string;
   link?: string;
@@ -157,6 +159,7 @@ export interface Service {
 }
 
 const isString = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
+const isOptionalString = (value: unknown): value is string | undefined => value === undefined || typeof value === 'string';
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((item) => typeof item === 'string');
 
@@ -262,24 +265,26 @@ export const isProject = (value: unknown): value is Project => {
     typeof v.solution === 'string' &&
     Array.isArray(v.results) && v.results.every((item) => typeof item === 'string') &&
     Array.isArray(v.tags) && v.tags.every((item) => typeof item === 'string') &&
-    isString(v.mainImage) &&
+    typeof v.mainImage === 'string' &&
     Array.isArray(v.images) && v.images.every((item) => typeof item === 'string') &&
-    (v.slug === undefined || isString(v.slug)) &&
-    (v.summary === undefined || isString(v.summary)) &&
-    (v.featuredImage === undefined || isString(v.featuredImage)) &&
-    (v.imageAlt === undefined || isString(v.imageAlt)) &&
+    isOptionalString(v.slug) &&
+    isOptionalString(v.summary) &&
+    isOptionalString(v.featuredImage) &&
+    isOptionalString(v.imageAlt) &&
     (v.featured === undefined || typeof v.featured === 'boolean') &&
     (v.status === undefined || v.status === 'draft' || v.status === 'in_review' || v.status === 'published' || v.status === 'archived') &&
-    (v.link === undefined || isString(v.link)) &&
-    (v.createdAt === undefined || isString(v.createdAt)) &&
-    (v.updatedAt === undefined || isString(v.updatedAt)) &&
-    (v.reviewedAt === undefined || isString(v.reviewedAt)) &&
-    (v.reviewedBy === undefined || isString(v.reviewedBy)) &&
+    (v.archived === undefined || typeof v.archived === 'boolean') &&
+    (v.deleted === undefined || typeof v.deleted === 'boolean') &&
+    isOptionalString(v.link) &&
+    isOptionalString(v.createdAt) &&
+    isOptionalString(v.updatedAt) &&
+    isOptionalString(v.reviewedAt) &&
+    isOptionalString(v.reviewedBy) &&
     (links === undefined ||
       (typeof links === 'object' &&
         links !== null &&
-        (links.live === undefined || isString(links.live)) &&
-        (links.caseStudy === undefined || isString(links.caseStudy)))) &&
+        isOptionalString(links.live) &&
+        isOptionalString(links.caseStudy))) &&
     (testimonial === undefined ||
       (typeof testimonial === 'object' &&
         testimonial !== null &&
@@ -290,19 +295,19 @@ export const isProject = (value: unknown): value is Project => {
     (v.mediaRoles === undefined ||
       (typeof v.mediaRoles === 'object' &&
         v.mediaRoles !== null &&
-        (((v.mediaRoles as Record<string, unknown>).cardImage === undefined) || isString((v.mediaRoles as Record<string, unknown>).cardImage)) &&
-        (((v.mediaRoles as Record<string, unknown>).heroImage === undefined) || isString((v.mediaRoles as Record<string, unknown>).heroImage)) &&
-        (((v.mediaRoles as Record<string, unknown>).coverImage === undefined) || isString((v.mediaRoles as Record<string, unknown>).coverImage)) &&
-        (((v.mediaRoles as Record<string, unknown>).socialImage === undefined) || isString((v.mediaRoles as Record<string, unknown>).socialImage)) &&
+        isOptionalString((v.mediaRoles as Record<string, unknown>).cardImage) &&
+        isOptionalString((v.mediaRoles as Record<string, unknown>).heroImage) &&
+        isOptionalString((v.mediaRoles as Record<string, unknown>).coverImage) &&
+        isOptionalString((v.mediaRoles as Record<string, unknown>).socialImage) &&
         (((v.mediaRoles as Record<string, unknown>).galleryImages === undefined) || isStringArray((v.mediaRoles as Record<string, unknown>).galleryImages))))
     &&
     (v.seo === undefined ||
       (typeof v.seo === 'object' &&
         v.seo !== null &&
-        (((v.seo as Record<string, unknown>).title === undefined) || isString((v.seo as Record<string, unknown>).title)) &&
-        (((v.seo as Record<string, unknown>).description === undefined) || isString((v.seo as Record<string, unknown>).description)) &&
-        (((v.seo as Record<string, unknown>).canonicalSlug === undefined) || isString((v.seo as Record<string, unknown>).canonicalSlug)) &&
-        (((v.seo as Record<string, unknown>).socialImage === undefined) || isString((v.seo as Record<string, unknown>).socialImage))))
+        isOptionalString((v.seo as Record<string, unknown>).title) &&
+        isOptionalString((v.seo as Record<string, unknown>).description) &&
+        isOptionalString((v.seo as Record<string, unknown>).canonicalSlug) &&
+        isOptionalString((v.seo as Record<string, unknown>).socialImage)))
   );
 };
 

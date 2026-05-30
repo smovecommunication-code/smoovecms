@@ -1,5 +1,5 @@
 import { RUNTIME_CONFIG } from '../config/runtimeConfig';
-import type { BlogPost, MediaFile, Project, Service } from '../domain/contentSchemas';
+import { isMediaFileArray, isProject, isProjectArray, type BlogPost, type MediaFile, type Project, type Service } from '../domain/contentSchemas';
 import type { HomePageContentSettings } from '../data/pageContentSeed';
 
 interface ApiEnvelope<T> {
@@ -241,6 +241,30 @@ const DEFAULT_MANAGED_TAGS = ['Conseil', 'Production', 'Growth'];
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function normalizeProjectCollection(value: unknown): Project[] {
+  if (isProjectArray(value)) return value;
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    if (isProjectArray(record.projects)) return record.projects;
+    if (isProjectArray(record.items)) return record.items;
+    if (isProjectArray(record.data)) return record.data;
+    if (record.data && typeof record.data === 'object') return normalizeProjectCollection(record.data);
+  }
+  throw new ContentApiError('Project list response is missing valid projects.', 'PROJECT_LIST_RESPONSE_INVALID', 502, value);
+}
+
+function normalizeCreatedProject(value: unknown): Project {
+  if (isProject(value)) return value;
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    if (isProject(record.project)) return record.project;
+    if (isProject(record.item)) return record.item;
+    if (isProject(record.data)) return record.data;
+    if (record.data && typeof record.data === 'object') return normalizeCreatedProject(record.data);
+  }
+  throw new ContentApiError('Project create response is missing the created project.', 'PROJECT_CREATE_RESPONSE_INVALID', 502, value);
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<ApiEnvelope<T>> {
   const headers = new Headers(init.headers);
   if (!headers.has('Content-Type')) {
@@ -350,16 +374,21 @@ export async function fetchEditorialAnalytics(): Promise<EditorialAnalytics> {
 }
 
 export async function fetchBackendProjects(): Promise<Project[]> {
-  const body = await request<{ projects: Project[] }>('/projects');
-  return body.data?.projects || [];
+  const body = await request<unknown>('/projects');
+  const projects = normalizeProjectCollection(body.data ?? body);
+  console.info('[cms-projects] refetch status', { status: 200, count: projects.length });
+  return projects;
 }
 
 export async function saveBackendProject(project: Project): Promise<Project> {
-  const body = await request<{ project: Project }>('/projects', {
+  console.info('[cms-projects] create payload', { id: project.id, title: project.title, status: project.status });
+  const body = await request<unknown>('/projects', {
     method: 'POST',
     body: JSON.stringify(project),
   });
-  return body.data!.project;
+  const savedProject = normalizeCreatedProject(body.data ?? body);
+  console.info('[cms-projects] create response', { id: savedProject.id, title: savedProject.title, status: savedProject.status });
+  return savedProject;
 }
 
 
@@ -395,7 +424,11 @@ export async function deleteBackendService(id: string): Promise<void> {
 
 export async function fetchBackendMediaFiles(): Promise<MediaFile[]> {
   const body = await request<{ mediaFiles: MediaFile[] }>('/media');
-  return body.data?.mediaFiles || [];
+  const mediaFiles = body.data?.mediaFiles;
+  if (!isMediaFileArray(mediaFiles)) {
+    throw new ContentApiError('Media library response is missing valid media files.', 'MEDIA_LIST_RESPONSE_INVALID', 502, body.data);
+  }
+  return mediaFiles;
 }
 
 

@@ -364,6 +364,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
   const [mediaQuery, setMediaQuery] = useState('');
   const [selectedMediaId, setSelectedMediaId] = useState<string>('');
   const [mediaUploadError, setMediaUploadError] = useState('');
+  const [mediaFetchError, setMediaFetchError] = useState('');
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [selectedMediaAuthoritativeReferences, setSelectedMediaAuthoritativeReferences] = useState<BackendMediaReference[]>([]);
   const [selectedMediaReferencesLoading, setSelectedMediaReferencesLoading] = useState(false);
@@ -581,7 +582,9 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
         const backendMedia = await requestWithRetry(() => fetchBackendMediaFiles(), { retries: 1, retryDelayMs: 250 });
         if (!active) return;
         syncMediaFromBackend(backendMedia);
-      } catch {
+        setMediaFetchError('');
+      } catch (error) {
+        if (active) setMediaFetchError(getErrorMessage(error));
       }
 
       try {
@@ -1195,6 +1198,10 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       if (error.code === 'PROJECT_INVALID_STATUS_TRANSITION') return 'Transition de statut projet non autorisée.';
       if (error.code === 'PROJECT_NOT_PUBLISHABLE') return 'Ce projet ne peut pas être publié: complétez les champs requis.';
       if (error.code === 'PROJECT_INVALID_MEDIA_REFERENCE') return 'Le projet référence un média introuvable.';
+      if (error.code === 'PROJECT_CREATE_RESPONSE_INVALID') return 'Le backend n’a pas renvoyé le projet créé. Aucun succès affiché sans confirmation.';
+      if (error.code === 'PROJECT_CREATE_REFETCH_FAILED') return 'Projet créé mais impossible de recharger la liste.';
+      if (error.code === 'PROJECT_CREATE_NOT_VISIBLE_AFTER_REFRESH') return 'Projet créé mais absent du rechargement backend. Réessayez de rafraîchir la liste avant de recréer.';
+      if (error.code === 'PROJECT_LIST_RESPONSE_INVALID') return 'La réponse liste projets du backend est invalide.';
       return `Sauvegarde impossible (${error.message}).`;
     }
     return 'Sauvegarde impossible. Vérifiez votre connexion puis réessayez.';
@@ -1222,6 +1229,40 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     const normalized = mediaRepository.replaceAll(backendMedia);
     setMediaVersion((version) => version + 1);
     setSelectedMediaId((previousId) => (previousId && !normalized.some((file) => file.id === previousId) ? '' : previousId));
+    setMediaFetchError('');
+  };
+
+
+  const loadMediaFromBackend = async () => {
+    setMediaFetchError('');
+    try {
+      const backendMedia = await requestWithRetry(() => fetchBackendMediaFiles(), { retries: 1, retryDelayMs: 250 });
+      syncMediaFromBackend(backendMedia);
+    } catch (error) {
+      setMediaFetchError(getErrorMessage(error));
+    }
+  };
+
+  const fetchProjectsUntilPresent = async (projectId: string): Promise<Project[]> => {
+    const attempts = [0, 250, 500, 1000];
+    let latestProjects: Project[] = [];
+
+    for (const delayMs of attempts) {
+      if (delayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+      try {
+        latestProjects = await requestWithRetry(() => fetchBackendProjects(), { retries: 1, retryDelayMs: 250 });
+      } catch (error) {
+        throw new ContentApiError('Projet créé mais impossible de recharger la liste.', 'PROJECT_CREATE_REFETCH_FAILED', 502, { projectId, cause: error });
+      }
+      console.info('[cms-projects] refetch project count', { count: latestProjects.length, projectId });
+      if (latestProjects.some((project) => project.id === projectId)) {
+        return latestProjects;
+      }
+    }
+
+    throw new ContentApiError('Le backend a accepté la création, mais le projet est absent du rechargement.', 'PROJECT_CREATE_NOT_VISIBLE_AFTER_REFRESH', 502, { projectId, latestCount: latestProjects.length });
   };
 
   const resetProjectEditor = () => {
@@ -1315,8 +1356,8 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     };
 
     try {
-      await requestWithRetry(() => saveBackendProject(payload), { retries: 1, retryDelayMs: 250 });
-      const backendProjects = await requestWithRetry(() => fetchBackendProjects(), { retries: 1, retryDelayMs: 250 });
+      const savedProject = await requestWithRetry(() => saveBackendProject(payload), { retries: 1, retryDelayMs: 250 });
+      const backendProjects = await fetchProjectsUntilPresent(savedProject.id);
       syncProjectsFromBackend(backendProjects);
       showSuccess(projectEditorMode === 'create' ? 'Projet créé avec succès.' : 'Projet mis à jour avec succès.');
       resetProjectEditor();
@@ -1616,7 +1657,8 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
   };
 
   const handleMediaUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const input = event.currentTarget;
+    const file = input?.files?.[0];
     if (!file) return;
 
     setMediaUploadError('');
@@ -1629,12 +1671,15 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       setMediaUploadError('Upload média impossible (format/taille ou backend indisponible).');
     } finally {
       setIsUploadingMedia(false);
-      event.currentTarget.value = '';
+      if (input) {
+        input.value = '';
+      }
     }
   };
 
   const handleProjectMediaUpload = async (field: 'cardImage' | 'heroImage' | 'socialImage' | 'galleryImages', event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const input = event.currentTarget;
+    const file = input?.files?.[0];
     if (!file) return;
 
     setMediaUploadError('');
@@ -1655,7 +1700,9 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       setMediaUploadError('Upload média projet impossible (format/taille ou backend indisponible).');
     } finally {
       setIsUploadingMedia(false);
-      event.currentTarget.value = '';
+      if (input) {
+        input.value = '';
+      }
     }
   };
 
@@ -1664,7 +1711,8 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     field: 'media' | 'desktopMedia' | 'tabletMedia' | 'mobileMedia' | 'videoMedia',
     event: ChangeEvent<HTMLInputElement>,
   ) => {
-    const file = event.target.files?.[0];
+    const input = event.currentTarget;
+    const file = input?.files?.[0];
     if (!file) return;
 
     setHeroMediaUploadError('');
@@ -1709,7 +1757,9 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       setHeroMediaUploadError("Upload impossible pour cette slide. Vérifiez le format/taille puis réessayez.");
     } finally {
       setHeroMediaUploadTarget(null);
-      event.currentTarget.value = '';
+      if (input) {
+        input.value = '';
+      }
     }
   };
 
@@ -2529,8 +2579,9 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
           isUploadingMedia={isUploadingMedia}
           handleMediaUpload={handleMediaUpload}
           canEditContent={canEditContent}
-          mediaUploadError={mediaUploadError}
+          mediaUploadError={mediaFetchError || mediaUploadError}
           filteredMediaFiles={filteredMediaFiles}
+          loadMediaFromBackend={loadMediaFromBackend}
           selectedMediaId={selectedMediaId}
           selectedMedia={selectedMedia}
           authoritativeReferences={selectedMediaAuthoritativeReferences}
