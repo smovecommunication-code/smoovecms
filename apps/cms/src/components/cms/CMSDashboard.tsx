@@ -47,7 +47,9 @@ import {
   fetchSettingsHistory,
   requestWithRetry,
   rollbackSettingsVersion,
+  replaceBackendMediaFile,
   saveBackendBlogPost,
+  saveBackendMediaFile,
   saveBackendPageContent,
   saveBackendProject,
   saveBackendService,
@@ -1677,6 +1679,78 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     }
   };
 
+
+  const updateSelectedMedia = async (patch: Partial<MediaFile>) => {
+    if (!selectedMedia) return;
+    if (!canEditContent) {
+      setMediaUploadError('Modification média non autorisée pour votre rôle.');
+      return;
+    }
+
+    setMediaUploadError('');
+    try {
+      const updated = await requestWithRetry(() => saveBackendMediaFile({ ...selectedMedia, ...patch }), { retries: 1, retryDelayMs: 250 });
+      mediaRepository.save(updated);
+      setMediaVersion((version) => version + 1);
+      setSelectedMediaId(updated.id);
+      showSuccess('Métadonnées média enregistrées.');
+    } catch (error) {
+      setMediaUploadError(getErrorMessage(error));
+    }
+  };
+
+  const replaceSelectedMediaFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const file = input?.files?.[0];
+    if (!file || !selectedMedia) return;
+    if (!canEditContent) {
+      setMediaUploadError('Remplacement média non autorisé pour votre rôle.');
+      return;
+    }
+
+    setMediaUploadError('');
+    setIsUploadingMedia(true);
+    try {
+      const uploaded = await uploadFileToMediaLibrary(file);
+      const replacement: Partial<MediaFile> = {
+        filename: uploaded.filename,
+        originalName: uploaded.originalName || file.name,
+        mimeType: uploaded.mimeType || file.type,
+        type: uploaded.type,
+        size: uploaded.size,
+        url: uploaded.url,
+        publicPath: uploaded.publicPath,
+        thumbnailUrl: uploaded.thumbnailUrl || uploaded.url,
+        alt: selectedMedia.alt || uploaded.alt || file.name,
+        caption: selectedMedia.caption || uploaded.caption || selectedMedia.alt || file.name,
+        title: selectedMedia.title || uploaded.title || file.name,
+        label: selectedMedia.label || uploaded.label || selectedMedia.name,
+        tags: selectedMedia.tags,
+        source: 'local-disk-replacement',
+        metadata: {
+          ...(selectedMedia.metadata || {}),
+          ...(uploaded.metadata || {}),
+          replacedFromMediaId: uploaded.id,
+          replacedOriginalName: file.name,
+        },
+      };
+      const replaced = await requestWithRetry(() => replaceBackendMediaFile(selectedMedia.id, replacement), { retries: 1, retryDelayMs: 250 });
+      const refreshed = await requestWithRetry(() => fetchBackendMediaFiles(), { retries: 1, retryDelayMs: 250 }).catch(() => null);
+      if (refreshed) syncMediaFromBackend(refreshed);
+      else {
+        mediaRepository.save(replaced);
+        setMediaVersion((version) => version + 1);
+      }
+      setSelectedMediaId(selectedMedia.id);
+      showSuccess('Fichier remplacé en conservant la même référence média.');
+    } catch (error) {
+      setMediaUploadError(getErrorMessage(error));
+    } finally {
+      setIsUploadingMedia(false);
+      if (input) input.value = '';
+    }
+  };
+
   const handleProjectMediaUpload = async (field: 'cardImage' | 'heroImage' | 'socialImage' | 'galleryImages', event: ChangeEvent<HTMLInputElement>) => {
     const input = event.currentTarget;
     const file = input?.files?.[0];
@@ -2605,6 +2679,8 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
           authoritativeReferencesError={selectedMediaReferencesError}
           localFallbackUsages={selectedMedia ? (mediaUsageIndex.get(selectedMedia.id) || []) : []}
           canDeleteContent={canDeleteContent}
+          updateSelectedMedia={updateSelectedMedia}
+          replaceSelectedMediaFile={replaceSelectedMediaFile}
           deleteSelectedMedia={deleteSelectedMedia}
         />
       );

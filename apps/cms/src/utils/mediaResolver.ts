@@ -40,12 +40,26 @@ const isForbiddenRenderableValue = (value: string): boolean => {
   );
 };
 
+
+export const extractUploadPublicPath = (value: unknown): string => {
+  const normalized = `${value || ''}`.trim().replace(/\\/g, '/');
+  if (!normalized) return '';
+  const uploadsIndex = normalized.lastIndexOf('/uploads/');
+  if (uploadsIndex >= 0) return normalized.slice(uploadsIndex);
+  const dataUploadsIndex = normalized.lastIndexOf('data/uploads/');
+  if (dataUploadsIndex >= 0) return `/uploads/${normalized.slice(dataUploadsIndex + 'data/uploads/'.length)}`;
+  if (normalized.startsWith('uploads/')) return `/${normalized}`;
+  return '';
+};
+
 export const absolutizeMediaPath = (value: string): string => {
   const normalized = value.trim();
-  if (isForbiddenRenderableValue(normalized)) return '';
   if (isSafeHttpUrl(normalized)) return normalized;
 
   const apiOrigin = toApiOrigin();
+  const extractedPath = extractUploadPublicPath(normalized);
+  if (extractedPath) return `${apiOrigin}${extractedPath}`;
+  if (isForbiddenRenderableValue(normalized)) return '';
   if (normalized.startsWith('/uploads/')) return `${apiOrigin}${normalized}`;
   if (normalized.startsWith('uploads/')) return `${apiOrigin}/${normalized}`;
   return '';
@@ -57,11 +71,11 @@ export const resolveMediaRecordUrl = (media: MediaUrlCandidate | null | undefine
   const url = `${media.url || media.publicUrl || ''}`.trim();
   if (isSafeHttpUrl(url)) return url;
 
-  const publicPath = `${media.publicPath || ''}`.trim();
+  const publicPath = `${media.publicPath || ''}`.trim() || extractUploadPublicPath(media.path || (media as { storagePath?: string }).storagePath || media.url || media.publicUrl || media.thumbnailUrl || media.filename);
   if (publicPath.startsWith('/uploads/')) return `${toApiOrigin()}${publicPath}`;
   if (publicPath.startsWith('uploads/')) return `${toApiOrigin()}/${publicPath}`;
 
-  const filename = `${media.filename || ''}`.trim();
+  const filename = `${media.filename || ''}`.trim().replace(/^uploads\//, '');
   if (filename && !isForbiddenRenderableValue(filename)) return `${toApiOrigin()}/uploads/${filename.replace(/^\/+/, '')}`;
 
   return '';

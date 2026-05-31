@@ -34,12 +34,17 @@ export interface BlogPost {
   updatedBy?: string;
 }
 
-export type MediaType = 'image' | 'video' | 'document';
+export type CmsMediaType = 'image' | 'video' | 'file';
+export type MediaType = CmsMediaType | 'document';
 
 export interface MediaAsset {
   id: string;
   type: MediaType;
+  filename?: string;
+  originalName?: string;
+  mimeType?: string;
   url: string;
+  publicPath?: string;
   alt?: string;
   title?: string;
   label?: string;
@@ -211,8 +216,12 @@ export const isMediaFile = (value: unknown): value is MediaFile => {
   return (
     isString(v.id) &&
     isString(v.name) &&
-    (v.type === 'image' || v.type === 'video' || v.type === 'document') &&
+    (v.type === 'image' || v.type === 'video' || v.type === 'file' || v.type === 'document') &&
     isString(v.url) &&
+    (v.filename === undefined || isString(v.filename)) &&
+    (v.originalName === undefined || isString(v.originalName)) &&
+    (v.mimeType === undefined || isString(v.mimeType)) &&
+    (v.publicPath === undefined || isString(v.publicPath)) &&
     (v.thumbnailUrl === undefined || isString(v.thumbnailUrl)) &&
     typeof v.size === 'number' &&
     v.size >= 0 &&

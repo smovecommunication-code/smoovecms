@@ -1,6 +1,6 @@
 import { isMediaFile, isMediaFileArray, type MediaFile, type MediaType } from '../domain/contentSchemas';
 import { readFromStorage, writeToStorage } from './storage/localStorageStore';
-import { resolveMediaRecordUrl, resolveMediaUrl } from '../utils/mediaResolver';
+import { extractUploadPublicPath, resolveMediaRecordUrl, resolveMediaUrl } from '../utils/mediaResolver';
 
 const MEDIA_STORAGE_KEY = 'smove_media_files';
 const preserveLocalDataUrl = (value: string | undefined): string => {
@@ -19,14 +19,22 @@ export interface MediaUploadInput {
 }
 
 const normalizeMedia = (file: MediaFile): MediaFile => {
-  const normalizedName = file.name.trim();
+  const extractedPublicPath = extractUploadPublicPath(file.publicPath || file.url || file.thumbnailUrl || file.filename || file.name);
+  const normalizedFilename = (file.filename?.trim() || file.originalName?.trim() || file.name.trim()).replace(/^\/?uploads\//, '') || extractedPublicPath.replace(/^\/uploads\//, '');
+  const normalizedName = (file.name || file.originalName || normalizedFilename).trim();
   const normalizedAlt = file.alt?.trim() || normalizedName;
   const nowIso = new Date().toISOString();
+  const resolvedUrl = resolveMediaRecordUrl({ ...file, filename: normalizedFilename, publicPath: file.publicPath || extractedPublicPath }) || resolveMediaUrl(file.url) || preserveLocalDataUrl(file.url);
 
   return {
     ...file,
-    url: resolveMediaRecordUrl(file) || resolveMediaUrl(file.url) || preserveLocalDataUrl(file.url),
-    thumbnailUrl: resolveMediaRecordUrl(file) || resolveMediaUrl(file.thumbnailUrl || file.url) || preserveLocalDataUrl(file.thumbnailUrl || file.url),
+    filename: normalizedFilename,
+    originalName: file.originalName?.trim() || normalizedName,
+    mimeType: file.mimeType?.trim() || file.metadata?.mimeType || '',
+    publicPath: file.publicPath?.trim() || extractedPublicPath || (normalizedFilename ? `/uploads/${normalizedFilename}` : ''),
+    type: file.type === 'document' ? 'file' : file.type,
+    url: resolvedUrl,
+    thumbnailUrl: resolvedUrl || resolveMediaUrl(file.thumbnailUrl || file.url) || preserveLocalDataUrl(file.thumbnailUrl || file.url),
     name: normalizedName,
     title: file.title?.trim() || normalizedName,
     label: file.label?.trim() || normalizedName,

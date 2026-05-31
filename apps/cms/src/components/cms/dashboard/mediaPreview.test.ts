@@ -108,6 +108,22 @@ describe('mediaPreview', () => {
     expect(preview).toEqual({ src: 'https://smoveapi-1.onrender.com/uploads/2026/05/hero.png', kind: 'image' });
   });
 
+
+  it('repairs legacy local disk upload paths into public API URLs', () => {
+    const preview = resolveMediaLibraryThumbnail({
+      id: 'legacy-disk-path',
+      type: 'image',
+      url: '/workspace/smoveqpp/api/server/data/uploads/2026/04/legacy.png',
+      name: 'legacy.png',
+      size: 2048,
+      uploadedDate: '2026-05-30T10:00:00.000Z',
+      uploadedBy: 'editor',
+      tags: [],
+    });
+
+    expect(preview).toEqual({ src: 'https://smoveapi-1.onrender.com/uploads/2026/04/legacy.png', kind: 'image' });
+  });
+
   it('preserves non-image fallback in media library without broken image tags', () => {
     const preview = resolveMediaLibraryThumbnail({
       id: 'media-doc',
