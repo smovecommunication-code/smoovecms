@@ -1652,8 +1652,14 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       { retries: 1, retryDelayMs: 250 },
     );
 
-    const refreshedMedia = await requestWithRetry(() => fetchBackendMediaFiles(), { retries: 1, retryDelayMs: 250 });
-    syncMediaFromBackend(refreshedMedia);
+    const refreshedMedia = await requestWithRetry(() => fetchBackendMediaFiles(), { retries: 1, retryDelayMs: 250 }).catch(() => null);
+    if (refreshedMedia) {
+      syncMediaFromBackend(refreshedMedia);
+    } else {
+      mediaRepository.save(uploaded);
+      setMediaVersion((version) => version + 1);
+      setMediaFetchError('Upload enregistré, mais le rechargement complet de la médiathèque a échoué. Cliquez sur Rafraîchir backend.');
+    }
     setSelectedMediaId(uploaded.id);
     return uploaded;
   };
@@ -1735,6 +1741,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
         },
       };
       const replaced = await requestWithRetry(() => replaceBackendMediaFile(selectedMedia.id, replacement), { retries: 1, retryDelayMs: 250 });
+      await requestWithRetry(() => deleteBackendMediaFile(uploaded.id), { retries: 1, retryDelayMs: 250 }).catch(() => undefined);
       const refreshed = await requestWithRetry(() => fetchBackendMediaFiles(), { retries: 1, retryDelayMs: 250 }).catch(() => null);
       if (refreshed) syncMediaFromBackend(refreshed);
       else {

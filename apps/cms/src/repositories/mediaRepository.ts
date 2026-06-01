@@ -18,33 +18,65 @@ export interface MediaUploadInput {
   tags?: string[];
 }
 
-const normalizeMedia = (file: MediaFile): MediaFile => {
-  const extractedPublicPath = extractUploadPublicPath(file.publicPath || file.url || file.thumbnailUrl || file.filename || file.name);
-  const normalizedFilename = (file.filename?.trim() || file.originalName?.trim() || file.name.trim()).replace(/^\/?uploads\//, '') || extractedPublicPath.replace(/^\/uploads\//, '');
-  const normalizedName = (file.name || file.originalName || normalizedFilename).trim();
-  const normalizedAlt = file.alt?.trim() || normalizedName;
+type MediaInput = Partial<MediaFile> & Record<string, unknown>;
+
+const toStringMetadata = (metadata: unknown): Record<string, string> => {
+  if (!metadata || typeof metadata !== 'object') return {};
+  return Object.fromEntries(
+    Object.entries(metadata as Record<string, unknown>).map(([key, value]) => [key, typeof value === 'string' ? value : String(value ?? '')]),
+  );
+};
+
+const inferMediaType = (file: MediaInput, fallback: MediaType = 'file'): MediaType => {
+  const rawType = `${file.type || (file as { mediaType?: string }).mediaType || ''}`.trim().toLowerCase();
+  if (rawType === 'document') return 'file';
+  if (rawType === 'image' || rawType === 'video' || rawType === 'file') return rawType;
+  const mimeType = `${file.mimeType || (file.metadata as Record<string, unknown> | undefined)?.mimeType || ''}`.toLowerCase();
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('video/')) return 'video';
+  const source = `${file.url || file.publicPath || file.filename || file.originalName || file.name || ''}`.toLowerCase();
+  if (/\.(png|jpe?g|gif|webp|svg|avif)(\?|#|$)/.test(source) || source.startsWith('data:image/')) return 'image';
+  if (/\.(mp4|webm|mov|avi)(\?|#|$)/.test(source) || source.startsWith('data:video/')) return 'video';
+  return fallback === 'document' ? 'file' : fallback;
+};
+
+const normalizeMedia = (file: MediaInput): MediaFile => {
+  const explicitFilename = `${file.filename || file.originalName || ''}`.trim();
+  const extractedPublicPath = extractUploadPublicPath(file.publicPath || file.url || file.thumbnailUrl || explicitFilename || file.name);
+  const normalizedFilename = (explicitFilename || extractedPublicPath || `${file.name || ''}`.trim()).replace(/^\/?uploads\//, '') || extractedPublicPath.replace(/^\/uploads\//, '');
+  const normalizedName = `${file.name || file.originalName || file.label || file.title || normalizedFilename || file.id || 'media-file'}`.trim();
+  const normalizedAlt = `${file.alt || ''}`.trim() || normalizedName;
   const nowIso = new Date().toISOString();
-  const resolvedUrl = resolveMediaRecordUrl({ ...file, filename: normalizedFilename, publicPath: file.publicPath || extractedPublicPath }) || resolveMediaUrl(file.url) || preserveLocalDataUrl(file.url);
+  const publicPath = `${file.publicPath || ''}`.trim() || extractedPublicPath || (normalizedFilename ? `/uploads/${normalizedFilename}` : '');
+  const resolvedUrl = resolveMediaRecordUrl({ ...file, filename: normalizedFilename, publicPath }) || resolveMediaUrl(file.url) || preserveLocalDataUrl(file.url);
+  const thumbnailUrl = resolvedUrl || resolveMediaUrl(file.thumbnailUrl || file.url) || preserveLocalDataUrl(file.thumbnailUrl || file.url);
+  const metadata = toStringMetadata(file.metadata);
 
   return {
-    ...file,
+    ...(file as MediaFile),
+    id: `${file.id || `media_${Date.now()}`}`,
     filename: normalizedFilename,
-    originalName: file.originalName?.trim() || normalizedName,
-    mimeType: file.mimeType?.trim() || file.metadata?.mimeType || '',
-    publicPath: file.publicPath?.trim() || extractedPublicPath || (normalizedFilename ? `/uploads/${normalizedFilename}` : ''),
-    type: file.type === 'document' ? 'file' : file.type,
+    originalName: `${file.originalName || ''}`.trim() || normalizedName,
+    mimeType: `${file.mimeType || metadata.mimeType || ''}`.trim(),
+    publicPath,
+    type: inferMediaType(file),
     url: resolvedUrl,
-    thumbnailUrl: resolvedUrl || resolveMediaUrl(file.thumbnailUrl || file.url) || preserveLocalDataUrl(file.thumbnailUrl || file.url),
+    thumbnailUrl,
     name: normalizedName,
-    title: file.title?.trim() || normalizedName,
-    label: file.label?.trim() || normalizedName,
+    title: `${file.title || ''}`.trim() || normalizedName,
+    label: `${file.label || ''}`.trim() || normalizedName,
     alt: normalizedAlt,
-    caption: file.caption?.trim() || normalizedAlt || normalizedName,
-    tags: file.tags.map((tag) => tag.trim()).filter(Boolean),
-    source: file.source?.trim() || 'local-storage',
-    metadata: file.metadata || {},
-    createdAt: file.createdAt || file.uploadedDate || nowIso,
-    updatedAt: file.updatedAt || nowIso,
+    caption: `${file.caption || ''}`.trim() || normalizedAlt || normalizedName,
+    width: typeof file.width === 'number' && file.width >= 0 ? file.width : undefined,
+    height: typeof file.height === 'number' && file.height >= 0 ? file.height : undefined,
+    size: Number.isFinite(Number(file.size)) && Number(file.size) >= 0 ? Number(file.size) : 0,
+    uploadedDate: `${file.uploadedDate || file.createdAt || nowIso}`,
+    uploadedBy: `${file.uploadedBy || (file as { ownerUserId?: string }).ownerUserId || 'system'}`,
+    tags: Array.isArray(file.tags) ? file.tags.map((tag) => `${tag}`.trim()).filter(Boolean) : [],
+    source: `${file.source || 'content-api'}`.trim(),
+    metadata,
+    createdAt: `${file.createdAt || file.uploadedDate || nowIso}`,
+    updatedAt: `${file.updatedAt || nowIso}`,
     archivedAt: typeof file.archivedAt === 'string' ? file.archivedAt : null,
   };
 };
@@ -57,7 +89,7 @@ export interface MediaRepository {
   upload(data: MediaUploadInput): Promise<MediaFile>;
   getByType(type: MediaType): MediaFile[];
   search(query: string): MediaFile[];
-  replaceAll(files: MediaFile[]): MediaFile[];
+  replaceAll(files: Array<Partial<MediaFile>>): MediaFile[];
 }
 
 
@@ -170,8 +202,8 @@ class LocalMediaRepository implements MediaRepository {
     );
   }
 
-  replaceAll(files: MediaFile[]): MediaFile[] {
-    const normalized = files.filter(isMediaFile).map(normalizeMedia);
+  replaceAll(files: Array<Partial<MediaFile>>): MediaFile[] {
+    const normalized = files.map((file) => normalizeMedia(file as MediaInput)).filter(isMediaFile);
     this.memoryFiles = normalized;
     writeToStorage(MEDIA_STORAGE_KEY, normalized);
     return normalized;
