@@ -52,6 +52,10 @@ export interface MediaAsset {
   height?: number;
   metadata?: Record<string, string>;
   source?: string;
+  storageDriver?: string;
+  publicId?: string;
+  assetId?: string;
+  resourceType?: string;
   createdAt?: string;
   updatedAt?: string;
   archivedAt?: string | null;

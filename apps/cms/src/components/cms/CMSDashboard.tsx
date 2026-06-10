@@ -1732,7 +1732,13 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
         title: selectedMedia.title || uploaded.title || file.name,
         label: selectedMedia.label || uploaded.label || selectedMedia.name,
         tags: selectedMedia.tags,
-        source: 'local-disk-replacement',
+        source: uploaded.source || uploaded.storageDriver || 'cloudinary-replacement',
+        storageDriver: uploaded.storageDriver,
+        publicId: uploaded.publicId,
+        assetId: uploaded.assetId,
+        resourceType: uploaded.resourceType,
+        width: uploaded.width,
+        height: uploaded.height,
         metadata: {
           ...(selectedMedia.metadata || {}),
           ...(uploaded.metadata || {}),
@@ -1872,11 +1878,11 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
 
   const deleteMedia = async (targetMedia: MediaFile, knownReferences?: BackendMediaReference[]) => {
     if (!canDeleteContent) {
-      setSectionError("Archivage média non autorisé: rôle administrateur requis.");
+      setSectionError("Suppression média non autorisée: rôle administrateur requis.");
       return;
     }
     if (targetMedia.id === selectedMedia?.id && selectedMediaReferencesLoading) {
-      setSectionError("Analyse des références en cours. Réessayez l'archivage dans quelques secondes.");
+      setSectionError("Analyse des références en cours. Réessayez la suppression dans quelques secondes.");
       return;
     }
 
@@ -1884,16 +1890,16 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     if (authoritativeReferences.length > 0) {
       const summary = summarizeReferences(authoritativeReferences);
       const scope = summary.byDomain.map((entry) => `${entry.label}:${entry.count}`).join(' • ');
-      setSectionError(`Archivage bloqué: ${summary.total} référence(s) active(s) détectée(s)${scope ? ` (${scope})` : ''}.`);
+      setSectionError(`Suppression bloquée: ${summary.total} référence(s) active(s) détectée(s)${scope ? ` (${scope})` : ''}.`);
       return;
     }
 
     const localReferences = mediaUsageIndex.get(targetMedia.id) || [];
     const localHint = localReferences.length > 0 ? `\nIndice local (non bloquant): ${localReferences.slice(0, 3).join(' | ')}` : '';
     const confirmMessage = [
-      `Archiver le média "${targetMedia.label || targetMedia.name}" ?`,
-      'Cette action archive le fichier (pas de suppression définitive).',
-      'Le média archivé sort des sélecteurs actifs et peut être restauré ultérieurement via workflow dédié.',
+      `Supprimer définitivement le média "${targetMedia.label || targetMedia.name}" ?`,
+      'Cette action supprime définitivement le fichier Cloudinary et sa fiche média.',
+      'Cette action est irréversible et reste bloquée tant que le média est référencé.',
       localHint,
     ].filter(Boolean).join('\n');
     if (!window.confirm(confirmMessage)) {
@@ -1905,17 +1911,17 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       const refreshed = await requestWithRetry(() => fetchBackendMediaFiles(), { retries: 1, retryDelayMs: 250 });
       syncMediaFromBackend(refreshed);
       if (selectedMedia?.id === targetMedia.id) setSelectedMediaId('');
-      showSuccess('Média archivé avec protections de référence actives.');
+      showSuccess('Média supprimé de Cloudinary et de la bibliothèque.');
     } catch (error) {
       if (error instanceof ContentApiError && error.code === 'MEDIA_IN_USE') {
         const references = await requestWithRetry(() => fetchBackendMediaReferences(targetMedia.id), { retries: 1, retryDelayMs: 250 }).catch(() => []);
         setSelectedMediaAuthoritativeReferences(references);
         const summary = summarizeReferences(references);
         const sample = summary.sample.slice(0, 3).join(' | ');
-        setSectionError(`Archivage bloqué côté serveur: média référencé${sample ? ` (${sample})` : ''}.`);
+        setSectionError(`Suppression bloquée côté serveur: média référencé${sample ? ` (${sample})` : ''}.`);
         return;
       }
-      setSectionError('Archivage média impossible. Réessayez.');
+      setSectionError('Suppression média impossible. Réessayez.');
     }
   };
 
