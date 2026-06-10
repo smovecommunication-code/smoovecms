@@ -1,6 +1,7 @@
 import type { MediaFile } from '../../../domain/contentSchemas';
 import { isMediaReferenceValue, mediaIdFromReference, resolveAssetReference } from '../../../features/media/assetReference';
-import { resolveMediaRecordUrl } from '../../../utils/mediaResolver';
+import { mediaRepository } from '../../../repositories/mediaRepository';
+import { resolveCmsMediaUrl } from '../../../utils/mediaResolver';
 
 export type CmsPreviewState = 'resolvable' | 'unresolved' | 'missing';
 export type CmsPreviewSource = 'media-reference' | 'direct-url' | 'empty';
@@ -76,7 +77,7 @@ export function resolveMediaLibraryThumbnail(file: MediaFile): { src: string | n
     return { src: null, kind: 'non-image' };
   }
 
-  const src = resolveMediaRecordUrl(file);
+  const src = resolveCmsMediaUrl(file, mediaRepository.getAll());
   if (!src) {
     return { src: null, kind: 'missing' };
   }

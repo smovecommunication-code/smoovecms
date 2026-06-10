@@ -2,6 +2,7 @@ import type { MediaFile } from '../domain/contentSchemas';
 import { RUNTIME_CONFIG } from '../config/runtimeConfig';
 
 const DEFAULT_API_ORIGIN = 'https://smoveapi-1.onrender.com';
+export const API_ORIGIN = DEFAULT_API_ORIGIN;
 const HTTP_URL_PATTERN = /^https?:\/\//i;
 const FORBIDDEN_RENDER_SCHEME_PATTERN = /^(?:blob|file|data):/i;
 const LOCAL_DISK_PATH_PATTERN = /^(?:[a-zA-Z]:[\\/]|~[\\/]|\/Users\/|\/home\/|\/workspace\/|\/var\/|\/tmp\/|server\/data\/|api\/server\/data\/)/;
@@ -65,22 +66,41 @@ export const absolutizeMediaPath = (value: string): string => {
   return '';
 };
 
-export const resolveMediaRecordUrl = (media: MediaUrlCandidate | null | undefined): string => {
-  if (!media || typeof media !== 'object') return '';
+export const resolveCmsMediaUrl = (input: unknown, mediaList: MediaFile[] = []): string => {
+  if (!input) return '';
 
-  const url = `${media.url || media.publicUrl || ''}`.trim();
-  if (isSafeHttpUrl(url)) return url;
+  if (typeof input === 'string') {
+    const normalized = input.trim();
+    if (!normalized) return '';
+    if (isSafeHttpUrl(normalized)) return normalized;
+    if (normalized.startsWith('/uploads/') || normalized.startsWith('uploads/')) return absolutizeMediaPath(normalized);
 
-  const publicPath = `${media.publicPath || ''}`.trim() || extractUploadPublicPath(media.path || (media as { storagePath?: string }).storagePath || media.url || media.publicUrl || media.thumbnailUrl || media.filename);
-  if (publicPath.startsWith('/uploads/')) return `${toApiOrigin()}${publicPath}`;
-  if (publicPath.startsWith('uploads/')) return `${toApiOrigin()}/${publicPath}`;
+    if (normalized.startsWith('media:')) {
+      const id = normalized.slice(6).trim();
+      const found = mediaList.find((media) => String(media.id) === id && !media.archivedAt);
+      return found ? resolveCmsMediaUrl(found, mediaList) : '';
+    }
+
+    const found = mediaList.find((media) => String(media.id) === normalized && !media.archivedAt);
+    return found ? resolveCmsMediaUrl(found, mediaList) : '';
+  }
+
+  if (typeof input !== 'object') return '';
+  const media = input as MediaUrlCandidate & { storagePath?: string };
+  const candidates = [media.url, media.thumbnailUrl, media.publicUrl, media.publicPath, media.path, media.storagePath];
+  for (const candidate of candidates) {
+    const resolved = typeof candidate === 'string' ? absolutizeMediaPath(candidate) : '';
+    if (resolved) return resolved;
+  }
 
   const filename = `${media.filename || ''}`.trim().replace(/^uploads\//, '');
-  if (filename && !isForbiddenRenderableValue(filename)) return `${toApiOrigin()}/uploads/${filename.replace(/^\/+/, '')}`;
-
-  return '';
+  return filename && !isForbiddenRenderableValue(filename)
+    ? `${toApiOrigin()}/uploads/${filename.replace(/^\/+/, '')}`
+    : '';
 };
 
+export const resolveMediaRecordUrl = (media: MediaUrlCandidate | null | undefined): string =>
+  resolveCmsMediaUrl(media);
 export const normalizeMediaReference = (value: unknown): string => {
   const normalized = `${value || ''}`.trim();
   if (!normalized) return '';
@@ -96,7 +116,7 @@ const matchById = (id: string, mediaList: MediaFile[]): MediaFile | null =>
 
 export const resolveMediaUrl = (value: unknown, mediaList: MediaFile[] = []): string => {
   if (value && typeof value === 'object') {
-    const resolved = resolveMediaRecordUrl(value as MediaUrlCandidate);
+    const resolved = resolveCmsMediaUrl(value, mediaList);
     if (!resolved) logUnresolved('unrenderable media record', value);
     return resolved;
   }
@@ -111,11 +131,11 @@ export const resolveMediaUrl = (value: unknown, mediaList: MediaFile[] = []): st
       logUnresolved('missing media ref', normalized);
       return '';
     }
-    return resolveMediaUrl(matched, mediaList);
+    return resolveCmsMediaUrl(matched, mediaList);
   }
 
   const byId = matchById(normalized, mediaList);
-  if (byId) return resolveMediaUrl(byId, mediaList);
+  if (byId) return resolveCmsMediaUrl(byId, mediaList);
 
   if (isSafeHttpUrl(normalized) || normalized.startsWith('/uploads/') || normalized.startsWith('uploads/')) {
     return absolutizeMediaPath(normalized);

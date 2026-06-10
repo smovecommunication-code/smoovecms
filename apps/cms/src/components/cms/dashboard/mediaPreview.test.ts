@@ -124,6 +124,22 @@ describe('mediaPreview', () => {
     expect(preview).toEqual({ src: 'https://smoveapi-1.onrender.com/uploads/2026/04/legacy.png', kind: 'image' });
   });
 
+  it('falls back from an invalid record URL to a renderable thumbnail URL', () => {
+    const preview = resolveMediaLibraryThumbnail({
+      id: 'media-thumbnail-fallback',
+      type: 'image',
+      url: 'media:stale-reference',
+      thumbnailUrl: '/uploads/2026/06/thumbnail-fallback.jpg',
+      name: 'thumbnail-fallback.jpg',
+      size: 2000,
+      uploadedDate: '2026-06-09T00:00:00.000Z',
+      uploadedBy: 'editor',
+      tags: [],
+    });
+
+    expect(preview).toEqual({ src: 'https://smoveapi-1.onrender.com/uploads/2026/06/thumbnail-fallback.jpg', kind: 'image' });
+  });
+
   it('preserves non-image fallback in media library without broken image tags', () => {
     const preview = resolveMediaLibraryThumbnail({
       id: 'media-doc',

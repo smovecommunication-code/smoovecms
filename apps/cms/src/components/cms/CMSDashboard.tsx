@@ -1870,17 +1870,17 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     }
   };
 
-  const deleteSelectedMedia = async (authoritativeReferences: BackendMediaReference[]) => {
-    if (!selectedMedia) return;
+  const deleteMedia = async (targetMedia: MediaFile, knownReferences?: BackendMediaReference[]) => {
     if (!canDeleteContent) {
       setSectionError("Archivage média non autorisé: rôle administrateur requis.");
       return;
     }
-    if (selectedMediaReferencesLoading) {
+    if (targetMedia.id === selectedMedia?.id && selectedMediaReferencesLoading) {
       setSectionError("Analyse des références en cours. Réessayez l'archivage dans quelques secondes.");
       return;
     }
 
+    const authoritativeReferences = knownReferences ?? await requestWithRetry(() => fetchBackendMediaReferences(targetMedia.id), { retries: 1, retryDelayMs: 250 }).catch(() => []);
     if (authoritativeReferences.length > 0) {
       const summary = summarizeReferences(authoritativeReferences);
       const scope = summary.byDomain.map((entry) => `${entry.label}:${entry.count}`).join(' • ');
@@ -1888,10 +1888,10 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       return;
     }
 
-    const localReferences = mediaUsageIndex.get(selectedMedia.id) || [];
+    const localReferences = mediaUsageIndex.get(targetMedia.id) || [];
     const localHint = localReferences.length > 0 ? `\nIndice local (non bloquant): ${localReferences.slice(0, 3).join(' | ')}` : '';
     const confirmMessage = [
-      `Archiver le média "${selectedMedia.label || selectedMedia.name}" ?`,
+      `Archiver le média "${targetMedia.label || targetMedia.name}" ?`,
       'Cette action archive le fichier (pas de suppression définitive).',
       'Le média archivé sort des sélecteurs actifs et peut être restauré ultérieurement via workflow dédié.',
       localHint,
@@ -1901,14 +1901,14 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     }
 
     try {
-      await requestWithRetry(() => deleteBackendMediaFile(selectedMedia.id), { retries: 1, retryDelayMs: 250 });
+      await requestWithRetry(() => deleteBackendMediaFile(targetMedia.id), { retries: 1, retryDelayMs: 250 });
       const refreshed = await requestWithRetry(() => fetchBackendMediaFiles(), { retries: 1, retryDelayMs: 250 });
       syncMediaFromBackend(refreshed);
-      setSelectedMediaId('');
+      if (selectedMedia?.id === targetMedia.id) setSelectedMediaId('');
       showSuccess('Média archivé avec protections de référence actives.');
     } catch (error) {
       if (error instanceof ContentApiError && error.code === 'MEDIA_IN_USE') {
-        const references = await requestWithRetry(() => fetchBackendMediaReferences(selectedMedia.id), { retries: 1, retryDelayMs: 250 }).catch(() => []);
+        const references = await requestWithRetry(() => fetchBackendMediaReferences(targetMedia.id), { retries: 1, retryDelayMs: 250 }).catch(() => []);
         setSelectedMediaAuthoritativeReferences(references);
         const summary = summarizeReferences(references);
         const sample = summary.sample.slice(0, 3).join(' | ');
@@ -2688,7 +2688,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
           canDeleteContent={canDeleteContent}
           updateSelectedMedia={updateSelectedMedia}
           replaceSelectedMediaFile={replaceSelectedMediaFile}
-          deleteSelectedMedia={deleteSelectedMedia}
+          deleteMedia={deleteMedia}
         />
       );
     }

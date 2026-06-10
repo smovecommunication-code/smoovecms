@@ -44,7 +44,7 @@ describe('MediaSection', () => {
         authoritativeReferencesError=""
         localFallbackUsages={[]}
         canDeleteContent
-        deleteSelectedMedia={vi.fn()}
+        deleteMedia={vi.fn()}
       />,
     );
 
@@ -52,5 +52,6 @@ describe('MediaSection', () => {
     expect(html).toContain('Hero image');
     expect(html).toContain('content-store');
     expect(html).toContain('media:media-1');
+    expect(html).toContain('Supprimer');
   });
 });
