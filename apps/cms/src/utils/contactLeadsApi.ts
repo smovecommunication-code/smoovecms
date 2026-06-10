@@ -18,12 +18,14 @@ export interface ContactLead {
   contextLabel?: string;
   delivered: boolean;
   deliveryMode?: string | null;
+  status: 'new' | 'read' | 'archived';
   deliveryStatus: 'received' | 'sent' | 'failed' | 'disabled' | string;
   deliveryError?: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
-const CONTACT_BASE_URL = `${RUNTIME_CONFIG.apiBaseUrl}/contact`;
+const CONTACT_BASE_URL = `${RUNTIME_CONFIG.apiBaseUrl}/content/messages`;
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<ApiEnvelope<T>> {
   const headers = new Headers(init.headers);
@@ -61,11 +63,21 @@ export async function fetchContactLeads(query: { q?: string; source?: string; de
     items: ContactLead[];
     pagination: { page: number; limit: number; total: number; pages: number };
     summary?: { total: number; received: number; sent: number; failed: number; disabled: number };
-  }>(`/admin/submissions${qs ? `?${qs}` : ''}`);
+  }>(`${qs ? `?${qs}` : ''}`);
 
   return {
     items: body.data?.items ?? [],
     pagination: body.data?.pagination ?? { page: 1, limit: 50, total: 0, pages: 1 },
     summary: body.data?.summary ?? { total: 0, received: 0, sent: 0, failed: 0, disabled: 0 },
   };
+}
+
+export async function updateContactLeadStatus(id: string, status: ContactLead['status']): Promise<ContactLead> {
+  const body = await request<{ message: ContactLead }>(`/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+  if (!body.data?.message) throw new Error('MESSAGE_UPDATE_MISSING');
+  return body.data.message;
+}
+
+export async function deleteContactLead(id: string): Promise<void> {
+  await request(`/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }

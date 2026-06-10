@@ -86,6 +86,7 @@ import type { BlogPost, Project, Service } from '../../domain/contentSchemas';
 import { fetchNewsletterSubscribers, updateNewsletterSubscriberStatus, type NewsletterSubscriber } from '../../utils/newsletterApi';
 import { fetchContactLeads, type ContactLead } from '../../utils/contactLeadsApi';
 import { getPublicSiteUrl } from '../../utils/publicSiteUrl';
+import { getCloudinaryVariant } from '../../utils/cloudinaryVariant';
 import {
   AdminActionBar,
   AdminActionCluster,
@@ -337,6 +338,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       supportEmail: 'contact@smove.africa',
       brandMedia: { logo: '', logoDark: '', favicon: '', defaultSocialImage: '' },
     },
+    footer: { socialLinks: [] },
     operationalSettings: { instantPublishing: true },
     taxonomySettings: {
       blog: {
@@ -1947,7 +1949,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
         </div>
         <div className="overflow-hidden rounded-[8px] border border-[#e4edf1] bg-[#f5f9fa]">
           {preview.state === 'resolvable' ? (
-            <img src={preview.src} alt={preview.alt} className="h-[120px] w-full object-cover" loading="lazy" />
+            <img src={getCloudinaryVariant(preview.src, 'contain')} alt={preview.alt} className="max-h-[280px] w-full object-contain" loading="lazy" />
           ) : (
             <div className="flex h-[120px] items-center justify-center px-3 text-center text-[12px] text-[#6f7f85]">
               Référence non résolue (média manquant/archivé ou URL invalide).
@@ -2202,7 +2204,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
               return (
                 <div className="rounded-[10px] border border-[#d8e4e8] bg-[#fbfdff] p-3">
                   <p className="text-[12px] text-[#6f7f85] mb-2">Prévisualisation</p>
-                  {preview.kind === 'image' ? <img src={preview.src} alt={preview.alt || serviceForm.title || 'Service media'} className="h-24 w-24 rounded-[10px] object-cover border border-[#d8e4e8]" /> : null}
+                  {preview.kind === 'image' ? <img src={getCloudinaryVariant(preview.src, 'contain')} alt={preview.alt || serviceForm.title || 'Service media'} className="h-24 w-24 rounded-[10px] border border-[#d8e4e8] object-contain" /> : null}
                   {preview.kind === 'video' ? <video src={preview.src} className="h-24 w-40 rounded-[10px] border border-[#d8e4e8]" controls muted /> : null}
                   {preview.kind === 'missing' ? <p className="text-[12px] text-amber-700">Média introuvable: vérifiez la référence.</p> : null}
                 </div>
@@ -2816,19 +2818,11 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
           hydrateBackendFromLocalSnapshot={hydrateBackendFromLocalSnapshot}
           saveSettings={saveSettings}
           settingsHasUnsavedChanges={settingsHasUnsavedChanges}
-          siteSettingsTitle={siteSettingsTitle}
-          siteSettingsSupportEmail={siteSettingsSupportEmail}
-          siteBrandMedia={siteBrandMedia}
-          managedBlogCategories={managedBlogCategories}
-          managedBlogTags={managedBlogTags}
-          enforceManagedTags={enforceManagedTags}
           settingsSaving={settingsSaving}
           settingsValues={settingsValues}
           setSettingsValues={setSettingsValues}
-          savedSettingsSnapshot={savedSettingsSnapshot}
-          parseManagedTaxonomyInput={parseManagedTaxonomyInput}
-          settingsHistory={settingsHistory}
-          rollbackSettings={rollbackSettings}
+          mediaFiles={mediaFiles}
+          uploadFileToMediaLibrary={uploadFileToMediaLibrary}
         />
       );
     }
