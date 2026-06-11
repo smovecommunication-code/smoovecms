@@ -173,7 +173,7 @@ const EMPTY_BLOG_FORM: BlogFormState = {
   tags: '',
   featuredImage: '',
   readTime: '5 min',
-  status: 'draft',
+  status: 'published',
   seoTitle: '',
   seoDescription: '',
   canonicalSlug: '',
@@ -251,7 +251,7 @@ const isValidIsoDate = (value: string): boolean => !Number.isNaN(Date.parse(valu
 
 const getBlogPublishabilityErrors = (form: BlogFormState): Partial<Record<keyof BlogFormState, string>> => {
   const errors: Partial<Record<keyof BlogFormState, string>> = {};
-  if (!form.title.trim()) errors.title = 'Le titre est requis pour publication.';
+  if (!form.title.trim()) errors.title = 'Veuillez saisir le nom de l’article.';
 
   const normalized = normalizeSlug(form.slug, form.title);
   if (!normalized || !isValidSlug(normalized)) {
@@ -259,7 +259,7 @@ const getBlogPublishabilityErrors = (form: BlogFormState): Partial<Record<keyof 
   }
 
   if (!form.featuredImage.trim()) {
-    errors.featuredImage = 'L’image vedette est requise pour publication.';
+    errors.featuredImage = 'Veuillez ajouter une image pour l’article.';
   } else if (!isValidMediaField(form.featuredImage)) {
     errors.featuredImage = 'Utilisez une URL valide ou une référence media:asset-id existante.';
   }
@@ -338,6 +338,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       supportEmail: 'contact@smove.africa',
       brandMedia: { logo: '', logoDark: '', favicon: '', defaultSocialImage: '' },
     },
+    branding: { logoSize: { desktop: 120, tablet: 100, mobile: 80 } },
     footer: { socialLinks: [] },
     operationalSettings: { instantPublishing: true },
     taxonomySettings: {
@@ -782,19 +783,18 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
 
   const validateBlogForm = (form: BlogFormState) => {
     const errors: Partial<Record<keyof BlogFormState, string>> = {};
-    if (!form.title.trim()) errors.title = 'Veuillez saisir un titre d’article.';
-    if (!normalizeSlug(form.slug, form.title)) errors.slug = 'Le slug est requis.';
-    if (!form.featuredImage.trim()) errors.featuredImage = 'L’image vedette est requise pour les cartes.';
+    if (!form.title.trim()) errors.title = 'Veuillez saisir le nom de l’article.';
+    if (!form.featuredImage.trim()) errors.featuredImage = 'Veuillez ajouter une image pour l’article.';
     if (form.featuredImage.trim() && !isValidMediaField(form.featuredImage)) {
       errors.featuredImage = 'Utilisez une URL valide ou une référence media:asset-id existante.';
     }
-    if (form.socialImage.trim() && !isValidProjectMediaField(form.socialImage)) {
+    if (form.socialImage.trim() && !isValidMediaField(form.socialImage)) {
       errors.socialImage = 'L’image sociale doit être une URL valide ou media:asset-id existant.';
     }
     if (form.seoDescription && form.seoDescription.trim().length > 320) {
       errors.seoDescription = 'La description SEO doit rester concise (320 caractères max).';
     }
-    if (form.status === 'published' && mode === 'create') {
+    if (form.status === 'published' && blogEditorMode === 'create') {
       Object.assign(errors, getBlogPublishabilityErrors(form));
     }
     return errors;
@@ -922,18 +922,16 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       const existingPost = formToSave.id ? posts.find((entry) => entry.id === formToSave.id) : undefined;
       const payload = fromCmsBlogInputWithExisting(formToSave, existingPost);
       const saved = await requestWithRetry(() => saveBackendBlogPost(payload), { retries: 1, retryDelayMs: 250 });
-      blogRepository.save(saved);
-      setPosts((prev) => {
-        const index = prev.findIndex((entry) => entry.id === saved.id);
-        if (index >= 0) {
-          const next = [...prev];
-          next[index] = saved;
-          return next;
-        }
-        return [...prev, saved];
-      });
+      const refreshedPosts = await requestWithRetry(() => fetchBackendBlogPosts(), { retries: 1, retryDelayMs: 250 });
+      if (!refreshedPosts.some((entry) => entry.id === saved.id)) {
+        throw new Error("L’article enregistré n’apparaît pas encore dans la liste CMS rafraîchie.");
+      }
+      refreshedPosts.forEach((post) => blogRepository.save(post));
+      setPosts(refreshedPosts);
       showSuccess(blogEditorMode === 'create' ? 'Article créé avec succès.' : 'Article mis à jour avec succès.');
-      resetBlogEditor();
+      setBlogEditorMode('list');
+      setBlogForm(EMPTY_BLOG_FORM);
+      setBlogFormErrors({});
     } catch (error) {
       setPostsError(mapBlogError(error));
     } finally {

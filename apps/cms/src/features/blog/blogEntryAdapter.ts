@@ -1,6 +1,6 @@
 import type { BlogPost } from '../../domain/contentSchemas';
 import { normalizeSlug as normalizeSharedSlug } from '../../shared/contentContracts';
-import { BLOG_MEDIA_FALLBACK_QUERY, resolveBlogMediaReference } from './mediaReference';
+import { resolveBlogMediaReference } from './mediaReference';
 
 export interface CanonicalBlogSeo {
   title: string;
@@ -136,8 +136,8 @@ export function fromCmsBlogInput(input: CmsBlogInput): BlogPost {
 export function fromCmsBlogInputWithExisting(input: CmsBlogInput, existingPost?: BlogPost): BlogPost {
   const title = input.title.trim();
   const slug = normalizeSlug(input.slug, title);
-  const fallbackContent = input.content.trim() || 'Contenu à compléter.';
-  const excerpt = input.excerpt.trim() || fallbackContent.slice(0, 160) || `Résumé à compléter pour ${title || 'cet article'}.`;
+  const fallbackContent = input.content.trim();
+  const excerpt = input.excerpt.trim();
 
   const category = input.category.trim() || 'Non classé';
   const fallbackFeatured =
@@ -145,7 +145,7 @@ export function fromCmsBlogInputWithExisting(input: CmsBlogInput, existingPost?:
     existingPost?.mediaRoles?.coverImage?.trim() ||
     existingPost?.mediaRoles?.cardImage?.trim() ||
     existingPost?.featuredImage?.trim() ||
-    BLOG_MEDIA_FALLBACK_QUERY;
+    '';
   const featuredImage = input.featuredImage?.trim() || fallbackFeatured;
   const fallbackSocial =
     existingPost?.mediaRoles?.socialImage?.trim() ||
