@@ -140,19 +140,10 @@ export function fromCmsBlogInputWithExisting(input: CmsBlogInput, existingPost?:
   const excerpt = input.excerpt.trim();
 
   const category = input.category.trim() || 'Non classé';
-  const fallbackFeatured =
-    existingPost?.mediaRoles?.featuredImage?.trim() ||
-    existingPost?.mediaRoles?.coverImage?.trim() ||
-    existingPost?.mediaRoles?.cardImage?.trim() ||
-    existingPost?.featuredImage?.trim() ||
-    '';
-  const featuredImage = input.featuredImage?.trim() || fallbackFeatured;
-  const fallbackSocial =
-    existingPost?.mediaRoles?.socialImage?.trim() ||
-    existingPost?.seo?.socialImage?.trim() ||
-    featuredImage;
-  const socialImage = input.socialImage?.trim() || fallbackSocial;
-  const featuredImageUpdated = Boolean(input.featuredImage?.trim());
+  // Form fields are authoritative, including an explicit empty value. Clearing an
+  // article relationship must never delete or silently re-attach a media asset.
+  const featuredImage = input.featuredImage?.trim() || '';
+  const socialImage = input.socialImage?.trim() || '';
   const existingImages = Array.isArray(existingPost?.images)
     ? existingPost.images.map((entry) => entry.trim()).filter(Boolean)
     : [];
@@ -193,8 +184,8 @@ export function fromCmsBlogInputWithExisting(input: CmsBlogInput, existingPost?:
       ...existingPost?.mediaRoles,
       featuredImage,
       socialImage,
-      coverImage: featuredImageUpdated ? featuredImage : (existingPost?.mediaRoles?.coverImage?.trim() || featuredImage),
-      cardImage: featuredImageUpdated ? featuredImage : (existingPost?.mediaRoles?.cardImage?.trim() || featuredImage),
+      coverImage: featuredImage,
+      cardImage: featuredImage,
     },
   };
 }

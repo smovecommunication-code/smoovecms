@@ -49,3 +49,10 @@ export function getPublicSiteUrl(): string {
 
   return DEFAULT_PUBLIC_SITE_URL;
 }
+
+
+export function getPublicBlogArticleUrl(slug: string): string {
+  const base = new URL(getPublicSiteUrl());
+  base.hash = `#/blog/${encodeURIComponent(slug.trim())}`;
+  return base.toString();
+}

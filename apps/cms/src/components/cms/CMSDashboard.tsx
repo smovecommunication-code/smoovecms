@@ -258,9 +258,7 @@ const getBlogPublishabilityErrors = (form: BlogFormState): Partial<Record<keyof 
     errors.slug = 'Slug invalide pour publication (format attendu: mots-separes-par-tirets).';
   }
 
-  if (!form.featuredImage.trim()) {
-    errors.featuredImage = 'Veuillez ajouter une image pour l’article.';
-  } else if (!isValidMediaField(form.featuredImage)) {
+  if (form.featuredImage.trim() && !isValidMediaField(form.featuredImage)) {
     errors.featuredImage = 'Utilisez une URL valide ou une référence media:asset-id existante.';
   }
 
@@ -784,7 +782,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
   const validateBlogForm = (form: BlogFormState) => {
     const errors: Partial<Record<keyof BlogFormState, string>> = {};
     if (!form.title.trim()) errors.title = 'Veuillez saisir le nom de l’article.';
-    if (!form.featuredImage.trim()) errors.featuredImage = 'Veuillez ajouter une image pour l’article.';
+    if (blogEditorMode === 'create' && !form.featuredImage.trim()) errors.featuredImage = 'Veuillez ajouter une image pour créer l’article.';
     if (form.featuredImage.trim() && !isValidMediaField(form.featuredImage)) {
       errors.featuredImage = 'Utilisez une URL valide ou une référence media:asset-id existante.';
     }
@@ -929,8 +927,9 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       refreshedPosts.forEach((post) => blogRepository.save(post));
       setPosts(refreshedPosts);
       showSuccess(blogEditorMode === 'create' ? 'Article créé avec succès.' : 'Article mis à jour avec succès.');
-      setBlogEditorMode('list');
-      setBlogForm(EMPTY_BLOG_FORM);
+      const refreshedSaved = refreshedPosts.find((entry) => entry.id === saved.id) || saved;
+      setBlogEditorMode('edit');
+      setBlogForm(toBlogFormState(refreshedSaved));
       setBlogFormErrors({});
     } catch (error) {
       setPostsError(mapBlogError(error));
@@ -2321,7 +2320,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
           <div className="rounded-[12px] border border-[#eef3f5] p-4 space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h4 className="text-[16px] font-semibold text-[#273a41]">Identité & taxonomie</h4>
+                <h4 className="text-[16px] font-semibold text-[#273a41]">Informations de base</h4>
                 <p className="text-[12px] text-[#6f7f85]">Champs visibles en carte blog et pour le classement éditorial.</p>
               </div>
               {blogGroupHasErrors(['title', 'slug', 'author', 'readTime', 'category']) ? <span className="text-[12px] text-red-600">Bloc à corriger</span> : null}
@@ -2348,9 +2347,15 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
             </label>
           </div>
 
+
+          <div className="rounded-[12px] border border-[#eef3f5] p-4 space-y-3">
+            <div><h4 className="text-[16px] font-semibold text-[#273a41]">Image principale</h4><p className="text-[12px] text-[#6f7f85]">La relation peut être remplacée ou effacée sans supprimer le fichier de la médiathèque.</p></div>
+            {renderBlogMediaPicker('featuredImage', 'Image vedette (hero détail)', blogForm.featuredImage, 'Image vedette (hero)')}
+          </div>
+
           <div className="rounded-[12px] border border-[#eef3f5] p-4 space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <h4 className="text-[16px] font-semibold text-[#273a41]">Contenu article</h4>
+              <h4 className="text-[16px] font-semibold text-[#273a41]">Contenu</h4>
               {blogGroupHasErrors(['excerpt', 'content']) ? <span className="text-[12px] text-red-600">Résumé / contenu requis</span> : null}
             </div>
             <label className="block"><span className="text-[14px] text-[#6f7f85]">Résumé (affiché en carte)</span><textarea value={blogForm.excerpt} onChange={(event) => setBlogForm((prev) => ({ ...prev, excerpt: event.target.value }))} className="mt-1 w-full min-h-[90px] rounded-[10px] border border-[#d8e4e8] px-3 py-2" />{blogFormErrors.excerpt ? <p className="text-[12px] text-red-600 mt-1">{blogFormErrors.excerpt}</p> : null}</label>
@@ -2358,11 +2363,10 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
           </div>
 
           <div className="rounded-[12px] border border-[#eef3f5] p-4 space-y-3">
-            <h4 className="text-[16px] font-semibold text-[#273a41]">SEO & médias</h4>
+            <h4 className="text-[16px] font-semibold text-[#273a41]">SEO / aperçu social</h4>
             <label className="block"><span className="text-[14px] text-[#6f7f85]">SEO title</span><input value={blogForm.seoTitle} onChange={(event) => setBlogForm((prev) => ({ ...prev, seoTitle: event.target.value }))} className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" /><p className="text-[12px] text-[#6f7f85] mt-1">Utilisé dans les résultats de recherche et partages.</p></label>
             <label className="block"><span className="text-[14px] text-[#6f7f85]">SEO description</span><textarea value={blogForm.seoDescription} onChange={(event) => setBlogForm((prev) => ({ ...prev, seoDescription: event.target.value }))} className="mt-1 w-full min-h-[80px] rounded-[10px] border border-[#d8e4e8] px-3 py-2" />{blogFormErrors.seoDescription ? <p className="text-[12px] text-red-600 mt-1">{blogFormErrors.seoDescription}</p> : null}</label>
             <label className="block"><span className="text-[14px] text-[#6f7f85]">Canonical slug (optionnel)</span><input value={blogForm.canonicalSlug} onChange={(event) => setBlogForm((prev) => ({ ...prev, canonicalSlug: event.target.value }))} className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" /></label>
-          {renderBlogMediaPicker('featuredImage', 'Image vedette (carte + hero détail)', blogForm.featuredImage, 'Image vedette (carte + hero)')}
           {renderBlogMediaPicker('socialImage', 'Image sociale (aperçus)', blogForm.socialImage, 'Image sociale (partage)')}
           {mediaUploadError ? <AdminWarningState label={mediaUploadError} /> : null}
 
