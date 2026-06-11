@@ -18,6 +18,8 @@ import {
   Users,
   Upload,
   Mail,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { useAuth, type AuthAuditEvent } from '../../contexts/AuthContext';
@@ -82,11 +84,12 @@ import { summarizeReferences, type BackendMediaReference } from './dashboard/med
 import { resolveCmsPreviewReference } from './dashboard/mediaPreview';
 import { buildServicePayload, type ServiceFormPayloadState } from './dashboard/servicePayload';
 import { appendHeroBackgroundItemWithMedia, assignHeroBackgroundMedia } from './dashboard/pageContentHeroActions';
-import type { BlogPost, Project, Service } from '../../domain/contentSchemas';
+import type { BlogContentBlock, BlogPost, Project, Service } from '../../domain/contentSchemas';
 import { fetchNewsletterSubscribers, updateNewsletterSubscriberStatus, type NewsletterSubscriber } from '../../utils/newsletterApi';
 import { fetchContactLeads, type ContactLead } from '../../utils/contactLeadsApi';
 import { getPublicSiteUrl } from '../../utils/publicSiteUrl';
 import { getCloudinaryVariant } from '../../utils/cloudinaryVariant';
+import { BlogContentEditor } from './dashboard/BlogContentEditor';
 import {
   AdminActionBar,
   AdminActionCluster,
@@ -112,6 +115,7 @@ interface BlogFormState {
   slug: string;
   excerpt: string;
   content: string;
+  contentBlocks: BlogContentBlock[];
   author: string;
   category: string;
   tags: string;
@@ -168,6 +172,7 @@ const EMPTY_BLOG_FORM: BlogFormState = {
   slug: '',
   excerpt: '',
   content: '',
+  contentBlocks: [],
   author: '',
   category: '',
   tags: '',
@@ -284,6 +289,7 @@ const toBlogFormState = (post: BlogPost): BlogFormState => {
     slug: post.slug,
     excerpt: post.excerpt,
     content: post.content,
+    contentBlocks: Array.isArray(post.contentBlocks) ? post.contentBlocks : [],
     author: post.author,
     category: post.category,
     tags: post.tags.join(', '),
@@ -918,7 +924,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
 
     try {
       const existingPost = formToSave.id ? posts.find((entry) => entry.id === formToSave.id) : undefined;
-      const payload = fromCmsBlogInputWithExisting(formToSave, existingPost);
+      const payload = { ...fromCmsBlogInputWithExisting(formToSave, existingPost), contentBlocks: formToSave.contentBlocks };
       const saved = await requestWithRetry(() => saveBackendBlogPost(payload), { retries: 1, retryDelayMs: 250 });
       const refreshedPosts = await requestWithRetry(() => fetchBackendBlogPosts(), { retries: 1, retryDelayMs: 250 });
       if (!refreshedPosts.some((entry) => entry.id === saved.id)) {
@@ -1818,6 +1824,21 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     }
   };
 
+  const handleBlogBlockUpload = async (blockId: string, event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    if (!file) return;
+    setMediaUploadError('');
+    setIsUploadingMedia(true);
+    try {
+      const uploaded = await uploadFileToMediaLibrary(file);
+      const reference = toMediaReferenceValue(uploaded.id);
+      setBlogForm((prev) => ({ ...prev, contentBlocks: prev.contentBlocks.map((block) => block.id === blockId ? { ...block, media: reference, title: block.title || uploaded.label || uploaded.name } : block) }));
+      showSuccess('Image secondaire uploadée et ajoutée à l’article.');
+    } catch { setMediaUploadError('Upload de l’image secondaire impossible.'); }
+    finally { setIsUploadingMedia(false); input.value = ''; }
+  };
+
   const uploadHeroBackgroundMedia = async (
     itemId: string,
     field: 'media' | 'desktopMedia' | 'tabletMedia' | 'mobileMedia' | 'videoMedia',
@@ -2284,6 +2305,19 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     );
   };
 
+  const renderBlogContentBlocksEditor = () => {
+    const updateBlock = (id: string, patch: Partial<BlogContentBlock>) => setBlogForm((prev) => ({ ...prev, contentBlocks: prev.contentBlocks.map((block) => block.id === id ? { ...block, ...patch } : block) }));
+    const moveBlock = (index: number, offset: number) => setBlogForm((prev) => { const next = [...prev.contentBlocks]; const target = index + offset; if (target < 0 || target >= next.length) return prev; [next[index], next[target]] = [next[target], next[index]]; return { ...prev, contentBlocks: next }; });
+    const addBlock = (type: BlogContentBlock['type']) => setBlogForm((prev) => ({ ...prev, contentBlocks: [...prev.contentBlocks, { id: `block-${Date.now()}`, type, layout: 'full', text: '' }] }));
+    return <div className="rounded-[12px] border border-[#dce9ed] bg-[#f8fbfc] p-4 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><h4 className="text-[16px] font-semibold text-[#273a41]">Blocs secondaires — mise en page journal</h4><p className="mt-1 text-[12px] text-[#6f7f85]">Ajoutez des intertitres, textes et images légendées, puis réorganisez-les.</p></div><div className="flex flex-wrap gap-2"><AdminButton type="button" size="sm" onClick={() => addBlock('heading')}>+ Intertitre</AdminButton><AdminButton type="button" size="sm" onClick={() => addBlock('paragraph')}>+ Paragraphe</AdminButton><AdminButton type="button" size="sm" onClick={() => addBlock('image')}>+ Image</AdminButton></div></div>
+      {blogForm.contentBlocks.length === 0 ? <div className="rounded-[10px] border border-dashed border-[#cbdde2] bg-white p-5 text-center text-[13px] text-[#6f7f85]">Aucun bloc secondaire. Le contenu principal reste affiché normalement.</div> : <div className="space-y-4">{blogForm.contentBlocks.map((block, index) => <div key={block.id} className="rounded-[12px] border border-[#dce8ec] bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between gap-3"><span className="text-[11px] font-bold uppercase tracking-[.12em] text-[#0088ad]">{block.type === 'image' ? 'Image secondaire' : block.type === 'heading' ? 'Intertitre' : 'Paragraphe'}</span><div className="flex gap-1"><AdminButton type="button" size="sm" onClick={() => moveBlock(index, -1)} disabled={index === 0} title="Monter"><ArrowUp size={14} /></AdminButton><AdminButton type="button" size="sm" onClick={() => moveBlock(index, 1)} disabled={index === blogForm.contentBlocks.length - 1} title="Descendre"><ArrowDown size={14} /></AdminButton><AdminButton type="button" size="sm" intent="danger" onClick={() => setBlogForm((prev) => ({ ...prev, contentBlocks: prev.contentBlocks.filter((entry) => entry.id !== block.id) }))}><Trash2 size={14} /></AdminButton></div></div>
+        {block.type !== 'image' ? <textarea value={block.text || ''} onChange={(event) => updateBlock(block.id, { text: event.target.value })} className="min-h-[90px] w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" placeholder={block.type === 'heading' ? 'Titre de section' : 'Texte du paragraphe'} /> : <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,.8fr)]"><div className="space-y-3"><input value={block.media || ''} onChange={(event) => updateBlock(block.id, { media: event.target.value })} className="w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" placeholder="media:asset-id ou URL" /><div className="grid gap-2 sm:grid-cols-[1fr_auto]"><select value="" onChange={(event) => event.target.value && updateBlock(block.id, { media: event.target.value })} className="rounded-[10px] border border-[#d8e4e8] px-3 py-2 text-[13px]"><option value="">Choisir dans la médiathèque…</option>{mediaFiles.filter((file) => file.type === 'image').map((file) => <option key={file.id} value={toMediaReferenceValue(file.id)}>{file.label || file.name}</option>)}</select><label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-[10px] border border-dashed border-[#00b3e8] px-3 py-2 text-[13px] text-[#007fa3] hover:bg-[#f0fbff]"><Upload size={14} /> Uploader<input type="file" accept="image/*" className="hidden" disabled={isUploadingMedia} onChange={(event) => void handleBlogBlockUpload(block.id, event)} /></label></div><input value={block.title || ''} onChange={(event) => updateBlock(block.id, { title: event.target.value })} className="w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" placeholder="Titre de l’image" /><input value={block.caption || ''} onChange={(event) => updateBlock(block.id, { caption: event.target.value })} className="w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" placeholder="Légende sous l’image" /><textarea value={block.text || ''} onChange={(event) => updateBlock(block.id, { text: event.target.value })} className="min-h-[80px] w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" placeholder="Paragraphe sous ou à côté de l’image" /><select value={block.layout || 'full'} onChange={(event) => updateBlock(block.id, { layout: event.target.value as BlogContentBlock['layout'] })} className="w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2"><option value="full">Pleine largeur</option><option value="left">Image alignée à gauche</option><option value="right">Image alignée à droite</option></select></div><div>{renderCmsPreviewCard(block.title || 'Aperçu journal', block.media || '', block.caption || blogForm.title || 'Article', 'secondary article image')}</div></div>}
+      </div>)}</div>}
+    </div>;
+  };
+
   const renderBlogForm = () => {
     const title = blogEditorMode === 'create' ? 'Créer un article' : 'Modifier un article';
     const blogGroupHasErrors = (keys: Array<keyof BlogFormState>) => keys.some((key) => Boolean(blogFormErrors[key]));
@@ -2359,7 +2393,8 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
               {blogGroupHasErrors(['excerpt', 'content']) ? <span className="text-[12px] text-red-600">Résumé / contenu requis</span> : null}
             </div>
             <label className="block"><span className="text-[14px] text-[#6f7f85]">Résumé (affiché en carte)</span><textarea value={blogForm.excerpt} onChange={(event) => setBlogForm((prev) => ({ ...prev, excerpt: event.target.value }))} className="mt-1 w-full min-h-[90px] rounded-[10px] border border-[#d8e4e8] px-3 py-2" />{blogFormErrors.excerpt ? <p className="text-[12px] text-red-600 mt-1">{blogFormErrors.excerpt}</p> : null}</label>
-            <label className="block"><span className="text-[14px] text-[#6f7f85]">Contenu complet</span><textarea value={blogForm.content} onChange={(event) => setBlogForm((prev) => ({ ...prev, content: event.target.value }))} className="mt-1 w-full min-h-[160px] rounded-[10px] border border-[#d8e4e8] px-3 py-2" />{blogFormErrors.content ? <p className="text-[12px] text-red-600 mt-1">{blogFormErrors.content}</p> : null}</label>
+            <div><span className="mb-1 block text-[14px] text-[#6f7f85]">Contenu complet</span><BlogContentEditor value={blogForm.content} onChange={(content) => setBlogForm((prev) => ({ ...prev, content }))} error={blogFormErrors.content} /></div>
+            {renderBlogContentBlocksEditor()}
           </div>
 
           <div className="rounded-[12px] border border-[#eef3f5] p-4 space-y-3">

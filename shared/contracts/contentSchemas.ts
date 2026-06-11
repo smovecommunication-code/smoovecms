@@ -1,11 +1,22 @@
 export type BlogStatus = 'draft' | 'in_review' | 'published' | 'archived';
 
+export interface BlogContentBlock {
+  id: string;
+  type: 'paragraph' | 'heading' | 'image';
+  text?: string;
+  media?: string;
+  title?: string;
+  caption?: string;
+  layout?: 'full' | 'left' | 'right';
+}
+
 export interface BlogPost {
   id: string;
   title: string;
   slug: string;
   excerpt: string;
   content: string;
+  contentBlocks?: BlogContentBlock[];
   author: string;
   authorRole: string;
   category: string;
@@ -171,6 +182,12 @@ const isString = (value: unknown): value is string => typeof value === 'string' 
 const isOptionalString = (value: unknown): value is string | undefined => value === undefined || typeof value === 'string';
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((item) => typeof item === 'string');
+const isOptionalBlogContentBlocks = (value: unknown): value is BlogContentBlock[] | undefined =>
+  value === undefined || (Array.isArray(value) && value.every((item) => {
+    if (!item || typeof item !== 'object') return false;
+    const block = item as Record<string, unknown>;
+    return typeof block.id === 'string' && (block.type === 'paragraph' || block.type === 'heading' || block.type === 'image');
+  }));
 
 export const isBlogPost = (value: unknown): value is BlogPost => {
   if (!value || typeof value !== 'object') return false;
@@ -184,6 +201,7 @@ export const isBlogPost = (value: unknown): value is BlogPost => {
     typeof v.slug === 'string' &&
     typeof v.excerpt === 'string' &&
     typeof v.content === 'string' &&
+    isOptionalBlogContentBlocks(v.contentBlocks) &&
     typeof v.author === 'string' &&
     typeof v.authorRole === 'string' &&
     typeof v.category === 'string' &&

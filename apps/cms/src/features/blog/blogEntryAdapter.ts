@@ -22,6 +22,7 @@ export interface CanonicalBlogEntry {
   title: string;
   excerpt: string;
   content: string;
+  contentBlocks?: NonNullable<BlogPost['contentBlocks']>;
   author: string;
   category: string;
   featuredImage: string;
@@ -44,6 +45,7 @@ export interface CmsBlogInput {
   slug: string;
   excerpt: string;
   content: string;
+  contentBlocks?: NonNullable<BlogPost['contentBlocks']>;
   author: string;
   category: string;
   tags?: string;
@@ -156,6 +158,7 @@ export function fromCmsBlogInputWithExisting(input: CmsBlogInput, existingPost?:
     slug,
     excerpt,
     content: fallbackContent,
+    contentBlocks: input.contentBlocks || existingPost?.contentBlocks || [],
     author: input.author.trim() || 'Équipe SMOVE',
     authorRole: 'CMS Editor',
     category,
