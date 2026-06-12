@@ -37,7 +37,7 @@ function CMSContent() {
   }
 
   if (page === 'cms-forbidden') {
-    return <SecurityStatePage title="Accès refusé" description="Votre session est valide mais vous n'avez pas les droits admin/éditoriaux requis." actionHref="#account" actionLabel="Mon compte" />;
+    return <SecurityStatePage title="Accès refusé au CMS" description="Votre session est valide mais votre rôle ne permet pas d’accéder au CMS." actionHref="#account" actionLabel="Mon compte" />;
   }
 
   if (window.location.hash === '#account') {

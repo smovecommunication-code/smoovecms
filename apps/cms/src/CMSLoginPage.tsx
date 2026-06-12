@@ -28,6 +28,11 @@ export default function CMSLoginPage() {
     try {
       const result = await login(email.trim(), password);
 
+      if (result.destination === 'cms-forbidden') {
+        window.location.hash = result.destination;
+        return;
+      }
+
       if (result.success) {
         window.location.hash = result.destination ?? 'cms';
         return;
@@ -46,7 +51,7 @@ export default function CMSLoginPage() {
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#00b3e8]">SMOVE</p>
         <h1 className="mt-2 text-2xl font-semibold text-slate-900">Connexion CMS</h1>
-        <p className="mt-1 text-sm text-slate-500">Connectez-vous avec un compte admin ou editor.</p>
+        <p className="mt-1 text-sm text-slate-500">Connectez-vous avec un compte admin, editor ou author.</p>
 
         {authNotice ? <p className="mt-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{authNotice}</p> : null}
         {error ? (
