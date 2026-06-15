@@ -8,6 +8,9 @@ export interface ServiceFormPayloadState {
   shortDescription: string;
   icon: string;
   iconLikeAsset: string;
+  visualMedia: string;
+  image: string;
+  media: string;
   color: string;
   features: string;
   status: 'draft' | 'published' | 'archived';
@@ -48,6 +51,9 @@ export const buildServicePayload = (form: ServiceFormPayloadState, mode: 'create
       features: featureList,
       shortDescription: form.shortDescription.trim() || undefined,
       iconLikeAsset: form.iconLikeAsset.trim() || undefined,
+      visualMedia: form.visualMedia.trim() || undefined,
+      image: form.image.trim() || undefined,
+      media: form.media.trim() || undefined,
       overviewDescription: form.overviewDescription.trim() || undefined,
       ctaTitle: form.ctaTitle.trim() || undefined,
       ctaDescription: form.ctaDescription.trim() || undefined,
@@ -66,6 +72,9 @@ export const buildServicePayload = (form: ServiceFormPayloadState, mode: 'create
     ...(featureList.length > 0 ? { features: featureList } : {}),
     ...(form.shortDescription.trim() ? { shortDescription: form.shortDescription.trim() } : {}),
     ...(form.iconLikeAsset.trim() ? { iconLikeAsset: form.iconLikeAsset.trim() } : {}),
+    ...(form.visualMedia.trim() ? { visualMedia: form.visualMedia.trim() } : {}),
+    ...(form.image.trim() ? { image: form.image.trim() } : {}),
+    ...(form.media.trim() ? { media: form.media.trim() } : {}),
     ...(form.overviewDescription.trim() ? { overviewDescription: form.overviewDescription.trim() } : {}),
     ...(form.ctaTitle.trim() ? { ctaTitle: form.ctaTitle.trim() } : {}),
     ...(form.ctaDescription.trim() ? { ctaDescription: form.ctaDescription.trim() } : {}),

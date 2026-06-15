@@ -165,6 +165,9 @@ export interface Service {
   processTitle?: string;
   processSteps?: string[];
   iconLikeAsset?: string;
+  visualMedia?: string;
+  image?: string;
+  media?: string;
   seo?: {
     title?: string;
     description?: string;

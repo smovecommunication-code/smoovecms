@@ -84,7 +84,7 @@ import { summarizeReferences, type BackendMediaReference } from './dashboard/med
 import { resolveCmsPreviewReference } from './dashboard/mediaPreview';
 import { buildServicePayload, type ServiceFormPayloadState } from './dashboard/servicePayload';
 import { appendHeroBackgroundItemWithMedia, assignHeroBackgroundMedia } from './dashboard/pageContentHeroActions';
-import type { BlogContentBlock, BlogPost, Project, Service } from '../../domain/contentSchemas';
+import type { BlogContentBlock, BlogPost, MediaFile, Project, Service } from '../../domain/contentSchemas';
 import { fetchNewsletterSubscribers, updateNewsletterSubscriberStatus, type NewsletterSubscriber } from '../../utils/newsletterApi';
 import { fetchContactLeads, type ContactLead } from '../../utils/contactLeadsApi';
 import { getPublicSiteUrl } from '../../utils/publicSiteUrl';
@@ -167,6 +167,21 @@ const USER_ROLE_OPTIONS: AppUser['role'][] = ['admin', 'editor', 'author', 'view
 const USER_ACCOUNT_STATUS_OPTIONS: NonNullable<AppUser['accountStatus']>[] = ['active', 'invited', 'suspended'];
 const USER_PROVIDER_OPTIONS: NonNullable<AppUser['authProvider']>[] = ['local', 'google', 'facebook'];
 
+function CMSMediaPicker({ fieldName, label, value, mediaFiles, disabled, onChange, onUpload }: {
+  fieldName: string; label: string; value: string; mediaFiles: MediaFile[]; disabled?: boolean;
+  onChange: (reference: string) => void; onUpload: (file: File) => Promise<string>;
+}) {
+  const selected = mediaFiles.find((file) => value === toMediaReferenceValue(file.id));
+  const preview = value ? resolveCmsPreviewReference(value, selected?.alt || label, selected?.name) : null;
+  const choose = (reference: string) => { if (import.meta.env.DEV) console.debug('[CMS media] selected field', { fieldName, reference }); onChange(reference); };
+  return <div className="space-y-3 rounded-[10px] border border-[#e4edf1] bg-[#fcfeff] p-3">
+    <div className="flex items-start justify-between gap-3"><div><p className="text-[13px] font-semibold text-[#273a41]">{label}</p><p className="text-[12px] text-[#6f7f85]">{selected ? (selected.label || selected.title || selected.name) : 'Aucun média sélectionné'}</p></div>{value ? <AdminButton type="button" size="sm" onClick={() => choose('')}>Effacer</AdminButton> : null}</div>
+    {preview?.kind === 'image' ? <img src={getCloudinaryVariant(preview.src, 'thumbnail')} alt={preview.alt || label} className="h-28 w-40 rounded-[10px] border object-cover" /> : null}
+    <div className="grid gap-2 md:grid-cols-[1fr_auto]"><select aria-label={`Choisir ${label}`} value={selected ? value : ''} onChange={(event) => choose(event.target.value)} className="rounded-[10px] border border-[#d8e4e8] px-3 py-2 text-[13px]"><option value="">Choisir depuis la médiathèque…</option>{mediaFiles.filter((file) => file.type === 'image').map((file) => <option key={file.id} value={toMediaReferenceValue(file.id)}>{file.label || file.title || file.name} — {file.filename || file.originalName || file.name}</option>)}</select><label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-[10px] border border-dashed border-[#00b3e8] px-3 py-2 text-[13px] text-[#007fa3]"><Upload size={14} /> {value ? 'Remplacer / uploader' : 'Uploader'}<input type="file" accept="image/*" className="hidden" disabled={disabled} onChange={(event) => { const input = event.currentTarget; const file = input.files?.[0]; if (file) void onUpload(file).then(choose); input.value = ''; }} /></label></div>
+    <div className="space-y-0.5 text-[11px] text-[#6f7f85]"><p>Champ: <strong>{fieldName}</strong></p><p>Fichier: {selected?.filename || selected?.originalName || selected?.name || '—'}</p><p>ID / référence: <code>{value || '—'}</code></p></div>
+  </div>;
+}
+
 const EMPTY_BLOG_FORM: BlogFormState = {
   title: '',
   slug: '',
@@ -193,6 +208,9 @@ const EMPTY_SERVICE_FORM: ServiceFormState = {
   shortDescription: '',
   icon: 'palette',
   iconLikeAsset: '',
+  visualMedia: '',
+  image: '',
+  media: '',
   color: 'from-[#00b3e8] to-[#00c0e8]',
   features: '',
   status: 'published',
@@ -1441,6 +1459,9 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       shortDescription: service.shortDescription || '',
       icon: service.icon,
       iconLikeAsset: service.iconLikeAsset || '',
+      visualMedia: service.visualMedia || '',
+      image: service.image || '',
+      media: service.media || '',
       color: service.color,
       features: service.features.join('\n'),
       status: service.status ?? 'published',
@@ -1824,6 +1845,13 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     }
   };
 
+  const uploadMediaForField = async (file: File): Promise<string> => {
+    const uploaded = await uploadFileToMediaLibrary(file);
+    const reference = toMediaReferenceValue(uploaded.id);
+    if (import.meta.env.DEV) console.debug('[CMS media] uploaded/selected', { id: uploaded.id, reference });
+    return reference;
+  };
+
   const handleBlogBlockUpload = async (blockId: string, event: ChangeEvent<HTMLInputElement>) => {
     const input = event.currentTarget;
     const file = input.files?.[0];
@@ -2190,44 +2218,9 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
 
           <div className="rounded-[12px] border border-[#eef3f5] p-4 space-y-3">
             <h4 className="text-[16px] font-semibold text-[#273a41]">Media & CTA</h4>
-            <label className="block">
-              <span className="text-[14px] text-[#6f7f85]">Visuel / icône de référence</span>
-              <input value={serviceForm.iconLikeAsset} onChange={(event) => setServiceForm((prev) => ({ ...prev, iconLikeAsset: event.target.value }))} className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" placeholder="media:asset-id ou URL https://..." />
-              {serviceFormErrors.iconLikeAsset ? <p className="text-[12px] text-red-600 mt-1">{serviceFormErrors.iconLikeAsset}</p> : null}
-              <p className="text-[12px] text-[#6f7f85] mt-1">Utilisé en hero détail et fallback social.</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <AdminButton
-                  type="button"
-                  size="sm"
-                  disabled={!selectedMedia}
-                  onClick={() => {
-                    if (!selectedMedia) return;
-                    setServiceForm((prev) => ({ ...prev, iconLikeAsset: toMediaReferenceValue(selectedMedia.id) }));
-                    setServiceFormErrors((prev) => ({ ...prev, iconLikeAsset: undefined }));
-                  }}
-                >
-                  Utiliser média sélectionné
-                </AdminButton>
-                <AdminButton
-                  type="button"
-                  size="sm"
-                  onClick={() => setServiceForm((prev) => ({ ...prev, iconLikeAsset: '' }))}
-                >
-                  Retirer le visuel
-                </AdminButton>
-              </div>
-            </label>
-            {serviceForm.iconLikeAsset.trim() ? (() => {
-              const preview = resolveCmsPreviewReference(serviceForm.iconLikeAsset.trim());
-              return (
-                <div className="rounded-[10px] border border-[#d8e4e8] bg-[#fbfdff] p-3">
-                  <p className="text-[12px] text-[#6f7f85] mb-2">Prévisualisation</p>
-                  {preview.kind === 'image' ? <img src={getCloudinaryVariant(preview.src, 'contain')} alt={preview.alt || serviceForm.title || 'Service media'} className="h-24 w-24 rounded-[10px] border border-[#d8e4e8] object-contain" /> : null}
-                  {preview.kind === 'video' ? <video src={preview.src} className="h-24 w-40 rounded-[10px] border border-[#d8e4e8]" controls muted /> : null}
-                  {preview.kind === 'missing' ? <p className="text-[12px] text-amber-700">Média introuvable: vérifiez la référence.</p> : null}
-                </div>
-              );
-            })() : null}
+            {(['iconLikeAsset', 'visualMedia', 'image', 'media'] as const).map((field) => (
+              <CMSMediaPicker key={field} fieldName={field} label={field === 'iconLikeAsset' ? 'Icône / visuel principal' : field} value={serviceForm[field]} mediaFiles={mediaFiles} disabled={isUploadingMedia} onUpload={uploadMediaForField} onChange={(reference) => setServiceForm((prev) => ({ ...prev, [field]: reference }))} />
+            ))}
             <label className="block"><span className="text-[14px] text-[#6f7f85]">Titre CTA</span><input value={serviceForm.ctaTitle} onChange={(event) => setServiceForm((prev) => ({ ...prev, ctaTitle: event.target.value }))} className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" /></label>
             <label className="block"><span className="text-[14px] text-[#6f7f85]">Description CTA</span><textarea value={serviceForm.ctaDescription} onChange={(event) => setServiceForm((prev) => ({ ...prev, ctaDescription: event.target.value }))} className="mt-1 w-full min-h-[80px] rounded-[10px] border border-[#d8e4e8] px-3 py-2" /></label>
             <div className="grid md:grid-cols-2 gap-3">
@@ -2273,32 +2266,8 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     };
 
     return (
-      <div className="rounded-[10px] border border-[#e4edf1] bg-[#fcfeff] p-3 space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-[13px] font-semibold text-[#273a41]">{label}</p>
-            <p className="text-[12px] text-[#6f7f85]">Uploadez, choisissez dans la médiathèque, collez une URL externe, ou effacez.</p>
-          </div>
-          <AdminButton type="button" size="sm" onClick={() => assignReference('')}>Effacer</AdminButton>
-        </div>
-        <input
-          value={value}
-          onChange={(event) => assignReference(event.target.value)}
-          className="w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2"
-          placeholder="media:asset-id ou https://..."
-        />
-        <div className="grid gap-2 md:grid-cols-[1fr_auto]">
-          <select value="" onChange={(event) => { if (event.target.value) assignReference(event.target.value); }} className="rounded-[10px] border border-[#d8e4e8] px-3 py-2 text-[13px]">
-            <option value="">Choisir depuis la médiathèque…</option>
-            {mediaFiles.filter((file) => file.type === 'image').map((file) => (
-              <option key={file.id} value={toMediaReferenceValue(file.id)}>{file.label || file.name}</option>
-            ))}
-          </select>
-          <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-[10px] border border-dashed border-[#00b3e8] px-3 py-2 text-[13px] text-[#007fa3] hover:bg-[#f0fbff]">
-            <Upload size={14} /> Uploader
-            <input type="file" accept="image/*" onChange={(event) => { void handleBlogMediaUpload(field, event); }} className="hidden" disabled={isUploadingMedia} />
-          </label>
-        </div>
+      <div>
+        <CMSMediaPicker fieldName={field} label={label} value={value} mediaFiles={mediaFiles} disabled={isUploadingMedia} onUpload={uploadMediaForField} onChange={assignReference} />
         {field === 'featuredImage' && blogFormErrors.featuredImage ? <p className="text-[12px] text-red-600 mt-1">{blogFormErrors.featuredImage}</p> : null}
         {renderCmsPreviewCard(previewLabel, value, blogForm.title || 'Article', 'blog article image')}
       </div>
