@@ -208,6 +208,7 @@ const EMPTY_SERVICE_FORM: ServiceFormState = {
   shortDescription: '',
   icon: 'palette',
   iconLikeAsset: '',
+  representativeImage: '',
   visualMedia: '',
   image: '',
   media: '',
@@ -223,6 +224,7 @@ const EMPTY_SERVICE_FORM: ServiceFormState = {
   ctaPrimaryHref: '',
   processTitle: '',
   processSteps: '',
+  illustrationCards: '',
 };
 
 const EMPTY_PROJECT_FORM: ProjectFormState = {
@@ -1459,6 +1461,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       shortDescription: service.shortDescription || '',
       icon: service.icon,
       iconLikeAsset: service.iconLikeAsset || '',
+      representativeImage: service.representativeImage || '',
       visualMedia: service.visualMedia || '',
       image: service.image || '',
       media: service.media || '',
@@ -1474,6 +1477,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       ctaPrimaryHref: service.ctaPrimaryHref || '',
       processTitle: service.processTitle || '',
       processSteps: (service.processSteps || []).join('\n'),
+      illustrationCards: JSON.stringify(service.illustrationCards || [], null, 2),
     });
     setServiceFormErrors({});
     setServicesError('');
@@ -2218,9 +2222,10 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
 
           <div className="rounded-[12px] border border-[#eef3f5] p-4 space-y-3">
             <h4 className="text-[16px] font-semibold text-[#273a41]">Media & CTA</h4>
-            {(['iconLikeAsset', 'visualMedia', 'image', 'media'] as const).map((field) => (
-              <CMSMediaPicker key={field} fieldName={field} label={field === 'iconLikeAsset' ? 'Icône / visuel principal' : field} value={serviceForm[field]} mediaFiles={mediaFiles} disabled={isUploadingMedia} onUpload={uploadMediaForField} onChange={(reference) => setServiceForm((prev) => ({ ...prev, [field]: reference }))} />
+            {(['representativeImage', 'iconLikeAsset', 'visualMedia', 'image', 'media'] as const).map((field) => (
+              <CMSMediaPicker key={field} fieldName={field} label={field === 'representativeImage' ? 'Image représentative' : field === 'iconLikeAsset' ? 'Icône / visuel principal' : field} value={serviceForm[field]} mediaFiles={mediaFiles} disabled={isUploadingMedia} onUpload={uploadMediaForField} onChange={(reference) => setServiceForm((prev) => ({ ...prev, [field]: reference }))} />
             ))}
+            <label className="block"><span className="text-[14px] text-[#6f7f85]">Cartes illustratives (JSON: id, title, image, caption)</span><textarea value={serviceForm.illustrationCards} onChange={(event) => setServiceForm((prev) => ({ ...prev, illustrationCards: event.target.value }))} className="mt-1 w-full min-h-[140px] rounded-[10px] border border-[#d8e4e8] px-3 py-2 font-mono text-[12px]" /></label>
             <label className="block"><span className="text-[14px] text-[#6f7f85]">Titre CTA</span><input value={serviceForm.ctaTitle} onChange={(event) => setServiceForm((prev) => ({ ...prev, ctaTitle: event.target.value }))} className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" /></label>
             <label className="block"><span className="text-[14px] text-[#6f7f85]">Description CTA</span><textarea value={serviceForm.ctaDescription} onChange={(event) => setServiceForm((prev) => ({ ...prev, ctaDescription: event.target.value }))} className="mt-1 w-full min-h-[80px] rounded-[10px] border border-[#d8e4e8] px-3 py-2" /></label>
             <div className="grid md:grid-cols-2 gap-3">

@@ -8,6 +8,7 @@ export interface ServiceFormPayloadState {
   shortDescription: string;
   icon: string;
   iconLikeAsset: string;
+  representativeImage: string;
   visualMedia: string;
   image: string;
   media: string;
@@ -23,6 +24,7 @@ export interface ServiceFormPayloadState {
   ctaPrimaryHref: string;
   processTitle: string;
   processSteps: string;
+  illustrationCards: string;
 }
 
 const normalizeSlug = (value: string): string =>
@@ -33,6 +35,7 @@ export const buildServicePayload = (form: ServiceFormPayloadState, mode: 'create
   const routeSlug = form.routeSlug.trim() || slug;
   const featureList = form.features.split('\n').map((entry) => entry.trim()).filter(Boolean);
   const processSteps = form.processSteps.split('\n').map((entry) => entry.trim()).filter(Boolean);
+  const illustrationCards = form.illustrationCards?.trim() ? JSON.parse(form.illustrationCards) : [];
   const payloadBase = {
     id: form.id || `service-${Date.now()}`,
     title: form.title.trim(),
@@ -51,6 +54,8 @@ export const buildServicePayload = (form: ServiceFormPayloadState, mode: 'create
       features: featureList,
       shortDescription: form.shortDescription.trim() || undefined,
       iconLikeAsset: form.iconLikeAsset.trim() || undefined,
+      representativeImage: form.representativeImage?.trim() || undefined,
+      illustrationCards,
       visualMedia: form.visualMedia.trim() || undefined,
       image: form.image.trim() || undefined,
       media: form.media.trim() || undefined,
@@ -72,6 +77,8 @@ export const buildServicePayload = (form: ServiceFormPayloadState, mode: 'create
     ...(featureList.length > 0 ? { features: featureList } : {}),
     ...(form.shortDescription.trim() ? { shortDescription: form.shortDescription.trim() } : {}),
     ...(form.iconLikeAsset.trim() ? { iconLikeAsset: form.iconLikeAsset.trim() } : {}),
+    ...(form.representativeImage?.trim() ? { representativeImage: form.representativeImage.trim() } : {}),
+    ...(illustrationCards.length ? { illustrationCards } : {}),
     ...(form.visualMedia.trim() ? { visualMedia: form.visualMedia.trim() } : {}),
     ...(form.image.trim() ? { image: form.image.trim() } : {}),
     ...(form.media.trim() ? { media: form.media.trim() } : {}),

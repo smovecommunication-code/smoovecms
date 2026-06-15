@@ -24,6 +24,8 @@ const normalizeService = (service: Partial<Service> & { id: string }): Service =
     shortDescription: requiredTrimmed(service.shortDescription) || undefined,
     icon: requiredTrimmed(service.icon) || 'palette',
     iconLikeAsset: requiredTrimmed(service.iconLikeAsset) || undefined,
+    representativeImage: requiredTrimmed(service.representativeImage) || requiredTrimmed(service.visualMedia) || requiredTrimmed(service.iconLikeAsset) || undefined,
+    illustrationCards: Array.isArray(service.illustrationCards) ? service.illustrationCards.filter((card) => card?.title && card?.image) : [],
     routeSlug: normalizeSlug(requiredTrimmed(service.routeSlug) || requiredTrimmed(service.slug), title, service.id),
     overviewTitle: requiredTrimmed((service as Service).overviewTitle) || undefined,
     overviewDescription: requiredTrimmed((service as Service).overviewDescription) || undefined,

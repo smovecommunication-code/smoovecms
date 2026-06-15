@@ -5,6 +5,7 @@ export interface BlogContentBlock {
   type: 'paragraph' | 'heading' | 'image';
   text?: string;
   media?: string;
+  illustrationCards?: Array<{ id: string; title: string; image: string; caption?: string }>;
   title?: string;
   caption?: string;
   layout?: 'full' | 'left' | 'right';
@@ -150,6 +151,7 @@ export interface Service {
   slug: string;
   description: string;
   shortDescription?: string;
+  summary?: string;
   icon: string;
   color: string;
   features: string[];
@@ -165,9 +167,11 @@ export interface Service {
   processTitle?: string;
   processSteps?: string[];
   iconLikeAsset?: string;
+  representativeImage?: string;
   visualMedia?: string;
   image?: string;
   media?: string;
+  illustrationCards?: Array<{ id: string; title: string; image: string; caption?: string }>;
   seo?: {
     title?: string;
     description?: string;
