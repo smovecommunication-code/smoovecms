@@ -182,6 +182,27 @@ function CMSMediaPicker({ fieldName, label, value, mediaFiles, disabled, onChang
   </div>;
 }
 
+function ServiceIllustrationCardsMedia({ value, mediaFiles, disabled, onChange, onUpload }: {
+  value: string; mediaFiles: MediaFile[]; disabled?: boolean;
+  onChange: (value: string) => void; onUpload: (file: File) => Promise<string>;
+}) {
+  let cards: Array<{ id?: string; title?: string; image?: string; caption?: string }> = [];
+  try {
+    const parsed = value.trim() ? JSON.parse(value) : [];
+    if (Array.isArray(parsed)) cards = parsed;
+  } catch {
+    // Keep the raw JSON editable below until it is valid.
+  }
+  const updateImage = (index: number, image: string) => {
+    const next = cards.map((card, cardIndex) => cardIndex === index ? { ...card, image } : card);
+    onChange(JSON.stringify(next, null, 2));
+  };
+  return <div className="space-y-3">
+    {cards.map((card, index) => <CMSMediaPicker key={card.id || index} fieldName={`illustrationCards[${index}].image`} label={`Image — ${card.title || `carte ${index + 1}`}`} value={card.image || ''} mediaFiles={mediaFiles} disabled={disabled} onUpload={onUpload} onChange={(reference) => updateImage(index, reference)} />)}
+    <label className="block"><span className="text-[14px] text-[#6f7f85]">Cartes illustratives (JSON: id, title, image, caption)</span><textarea value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full min-h-[140px] rounded-[10px] border border-[#d8e4e8] px-3 py-2 font-mono text-[12px]" /></label>
+  </div>;
+}
+
 const EMPTY_BLOG_FORM: BlogFormState = {
   title: '',
   slug: '',
@@ -1593,6 +1614,12 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     setServicesError('');
 
     const payload: Service = buildServicePayload(serviceForm, serviceEditorMode === 'create' ? 'create' : 'edit');
+    console.info('[CMS services] saving media references', {
+      representativeImage: payload.representativeImage,
+      visualMedia: payload.visualMedia,
+      iconLikeAsset: payload.iconLikeAsset,
+      illustrationCards: payload.illustrationCards?.map((card) => ({ id: card.id, image: card.image })),
+    });
     if (serviceEditorMode === 'edit') {
       const existingService = services.find((entry) => entry.id === payload.id);
       const submittedIconAsset = `${payload.iconLikeAsset || ''}`.trim();
@@ -2225,7 +2252,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
             {(['representativeImage', 'iconLikeAsset', 'visualMedia', 'image', 'media'] as const).map((field) => (
               <CMSMediaPicker key={field} fieldName={field} label={field === 'representativeImage' ? 'Image représentative' : field === 'iconLikeAsset' ? 'Icône / visuel principal' : field} value={serviceForm[field]} mediaFiles={mediaFiles} disabled={isUploadingMedia} onUpload={uploadMediaForField} onChange={(reference) => setServiceForm((prev) => ({ ...prev, [field]: reference }))} />
             ))}
-            <label className="block"><span className="text-[14px] text-[#6f7f85]">Cartes illustratives (JSON: id, title, image, caption)</span><textarea value={serviceForm.illustrationCards} onChange={(event) => setServiceForm((prev) => ({ ...prev, illustrationCards: event.target.value }))} className="mt-1 w-full min-h-[140px] rounded-[10px] border border-[#d8e4e8] px-3 py-2 font-mono text-[12px]" /></label>
+            <ServiceIllustrationCardsMedia value={serviceForm.illustrationCards} mediaFiles={mediaFiles} disabled={isUploadingMedia} onUpload={uploadMediaForField} onChange={(illustrationCards) => setServiceForm((prev) => ({ ...prev, illustrationCards }))} />
             <label className="block"><span className="text-[14px] text-[#6f7f85]">Titre CTA</span><input value={serviceForm.ctaTitle} onChange={(event) => setServiceForm((prev) => ({ ...prev, ctaTitle: event.target.value }))} className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" /></label>
             <label className="block"><span className="text-[14px] text-[#6f7f85]">Description CTA</span><textarea value={serviceForm.ctaDescription} onChange={(event) => setServiceForm((prev) => ({ ...prev, ctaDescription: event.target.value }))} className="mt-1 w-full min-h-[80px] rounded-[10px] border border-[#d8e4e8] px-3 py-2" /></label>
             <div className="grid md:grid-cols-2 gap-3">
