@@ -182,27 +182,6 @@ function CMSMediaPicker({ fieldName, label, value, mediaFiles, disabled, onChang
   </div>;
 }
 
-function ServiceIllustrationCardsMedia({ value, mediaFiles, disabled, onChange, onUpload }: {
-  value: string; mediaFiles: MediaFile[]; disabled?: boolean;
-  onChange: (value: string) => void; onUpload: (file: File) => Promise<string>;
-}) {
-  let cards: Array<{ id?: string; title?: string; image?: string; caption?: string }> = [];
-  try {
-    const parsed = value.trim() ? JSON.parse(value) : [];
-    if (Array.isArray(parsed)) cards = parsed;
-  } catch {
-    // Keep the raw JSON editable below until it is valid.
-  }
-  const updateImage = (index: number, image: string) => {
-    const next = cards.map((card, cardIndex) => cardIndex === index ? { ...card, image } : card);
-    onChange(JSON.stringify(next, null, 2));
-  };
-  return <div className="space-y-3">
-    {cards.map((card, index) => <CMSMediaPicker key={card.id || index} fieldName={`illustrationCards[${index}].image`} label={`Image — ${card.title || `carte ${index + 1}`}`} value={card.image || ''} mediaFiles={mediaFiles} disabled={disabled} onUpload={onUpload} onChange={(reference) => updateImage(index, reference)} />)}
-    <label className="block"><span className="text-[14px] text-[#6f7f85]">Cartes illustratives (JSON: id, title, image, caption)</span><textarea value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full min-h-[140px] rounded-[10px] border border-[#d8e4e8] px-3 py-2 font-mono text-[12px]" /></label>
-  </div>;
-}
-
 const EMPTY_BLOG_FORM: BlogFormState = {
   title: '',
   slug: '',
@@ -228,11 +207,6 @@ const EMPTY_SERVICE_FORM: ServiceFormState = {
   description: '',
   shortDescription: '',
   icon: 'palette',
-  iconLikeAsset: '',
-  representativeImage: '',
-  visualMedia: '',
-  image: '',
-  media: '',
   color: 'from-[#00b3e8] to-[#00c0e8]',
   features: '',
   status: 'published',
@@ -245,7 +219,6 @@ const EMPTY_SERVICE_FORM: ServiceFormState = {
   ctaPrimaryHref: '',
   processTitle: '',
   processSteps: '',
-  illustrationCards: '',
 };
 
 const EMPTY_PROJECT_FORM: ProjectFormState = {
@@ -1481,11 +1454,6 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       description: service.description,
       shortDescription: service.shortDescription || '',
       icon: service.icon,
-      iconLikeAsset: service.iconLikeAsset || '',
-      representativeImage: service.representativeImage || '',
-      visualMedia: service.visualMedia || '',
-      image: service.image || '',
-      media: service.media || '',
       color: service.color,
       features: service.features.join('\n'),
       status: service.status ?? 'published',
@@ -1498,7 +1466,6 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       ctaPrimaryHref: service.ctaPrimaryHref || '',
       processTitle: service.processTitle || '',
       processSteps: (service.processSteps || []).join('\n'),
-      illustrationCards: JSON.stringify(service.illustrationCards || [], null, 2),
     });
     setServiceFormErrors({});
     setServicesError('');
@@ -1533,9 +1500,6 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     }
     if (form.routeSlug.trim() && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(form.routeSlug.trim())) {
       errors.routeSlug = 'Le routeSlug doit contenir uniquement des lettres minuscules, chiffres et tirets.';
-    }
-    if (form.iconLikeAsset.trim() && !isValidMediaField(form.iconLikeAsset)) {
-      errors.iconLikeAsset = 'Icon asset invalide. Utilisez une URL valide ou media:asset-id existant.';
     }
     if (form.ctaPrimaryHref.trim() && !isValidPublicHref(form.ctaPrimaryHref)) {
       errors.ctaPrimaryHref = 'Le CTA doit être une ancre (#contact), une route (/contact) ou une URL https://.';
@@ -1614,21 +1578,6 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     setServicesError('');
 
     const payload: Service = buildServicePayload(serviceForm, serviceEditorMode === 'create' ? 'create' : 'edit');
-    console.info('[CMS services] saving media references', {
-      representativeImage: payload.representativeImage,
-      visualMedia: payload.visualMedia,
-      iconLikeAsset: payload.iconLikeAsset,
-      illustrationCards: payload.illustrationCards?.map((card) => ({ id: card.id, image: card.image })),
-    });
-    if (serviceEditorMode === 'edit') {
-      const existingService = services.find((entry) => entry.id === payload.id);
-      const submittedIconAsset = `${payload.iconLikeAsset || ''}`.trim();
-      const existingIconAsset = `${existingService?.iconLikeAsset || ''}`.trim();
-      if (submittedIconAsset && submittedIconAsset === existingIconAsset) {
-        delete payload.iconLikeAsset;
-      }
-    }
-
     try {
       await requestWithRetry(() => saveBackendService(payload), { retries: 1, retryDelayMs: 250 });
       const backendServices = await requestWithRetry(() => fetchBackendServices(), { retries: 1, retryDelayMs: 250 });
@@ -2248,11 +2197,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
           </div>
 
           <div className="rounded-[12px] border border-[#eef3f5] p-4 space-y-3">
-            <h4 className="text-[16px] font-semibold text-[#273a41]">Media & CTA</h4>
-            {(['representativeImage', 'iconLikeAsset', 'visualMedia', 'image', 'media'] as const).map((field) => (
-              <CMSMediaPicker key={field} fieldName={field} label={field === 'representativeImage' ? 'Image représentative' : field === 'iconLikeAsset' ? 'Icône / visuel principal' : field} value={serviceForm[field]} mediaFiles={mediaFiles} disabled={isUploadingMedia} onUpload={uploadMediaForField} onChange={(reference) => setServiceForm((prev) => ({ ...prev, [field]: reference }))} />
-            ))}
-            <ServiceIllustrationCardsMedia value={serviceForm.illustrationCards} mediaFiles={mediaFiles} disabled={isUploadingMedia} onUpload={uploadMediaForField} onChange={(illustrationCards) => setServiceForm((prev) => ({ ...prev, illustrationCards }))} />
+            <h4 className="text-[16px] font-semibold text-[#273a41]">CTA</h4>
             <label className="block"><span className="text-[14px] text-[#6f7f85]">Titre CTA</span><input value={serviceForm.ctaTitle} onChange={(event) => setServiceForm((prev) => ({ ...prev, ctaTitle: event.target.value }))} className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" /></label>
             <label className="block"><span className="text-[14px] text-[#6f7f85]">Description CTA</span><textarea value={serviceForm.ctaDescription} onChange={(event) => setServiceForm((prev) => ({ ...prev, ctaDescription: event.target.value }))} className="mt-1 w-full min-h-[80px] rounded-[10px] border border-[#d8e4e8] px-3 py-2" /></label>
             <div className="grid md:grid-cols-2 gap-3">
