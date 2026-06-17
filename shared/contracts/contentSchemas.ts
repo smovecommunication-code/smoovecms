@@ -145,6 +145,31 @@ export interface Project {
   updatedBy?: string;
 }
 
+export interface TeamSocialLink {
+  platform: string;
+  label: string;
+  url: string;
+}
+
+export interface TeamMember {
+  id: string;
+  name: string;
+  role: string;
+  bio: string;
+  photo: string;
+  email?: string;
+  phone?: string;
+  socialLinks: TeamSocialLink[];
+  order: number;
+  status: 'draft' | 'published' | 'archived';
+  featured?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  ownerUserId?: string;
+  organizationId?: string;
+  updatedBy?: string;
+}
+
 export interface Service {
   id: string;
   title: string;

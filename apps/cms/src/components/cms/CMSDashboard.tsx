@@ -35,11 +35,13 @@ import {
   deleteBackendMediaFile,
   deleteBackendProject,
   deleteBackendService,
+  deleteBackendTeamMember,
   fetchBackendBlogPosts,
   fetchBackendMediaFiles,
   fetchBackendPageContent,
   fetchBackendProjects,
   fetchBackendServices,
+  fetchBackendTeamMembers,
   fetchBackendSettings,
   fetchEditorialAnalytics,
   fetchBackendMediaReferences,
@@ -55,6 +57,7 @@ import {
   saveBackendPageContent,
   saveBackendProject,
   saveBackendService,
+  saveBackendTeamMember,
   saveBackendSettings,
   transitionBackendBlogPost,
   transitionBackendProject,
@@ -378,6 +381,11 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
   const [projectForm, setProjectForm] = useState<ProjectFormState>(EMPTY_PROJECT_FORM);
   const [projectFormErrors, setProjectFormErrors] = useState<Partial<Record<keyof ProjectFormState, string>>>({});
   const [services, setServices] = useState<Service[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamForm, setTeamForm] = useState<Partial<TeamMember>>({ name: '', role: '', bio: '', photo: '', status: 'draft', order: 0, socialLinks: [] });
+  const [teamEditingId, setTeamEditingId] = useState<string | null>(null);
+  const [teamLoading, setTeamLoading] = useState(false);
+  const [teamError, setTeamError] = useState('');
   const [servicesLoading, setServicesLoading] = useState(true);
   const [servicesError, setServicesError] = useState('');
   const [isSavingService, setIsSavingService] = useState(false);
@@ -602,6 +610,18 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       }
 
       try {
+        setTeamLoading(true);
+        const backendTeam = await requestWithRetry(() => fetchBackendTeamMembers(), { retries: 1, retryDelayMs: 250 });
+        if (!active) return;
+        setTeamMembers(backendTeam);
+        setTeamError('');
+      } catch {
+        if (active) setTeamError("Backend indisponible. Impossible de charger l'équipe depuis l'API.");
+      } finally {
+        if (active) setTeamLoading(false);
+      }
+
+      try {
         const backendMedia = await requestWithRetry(() => fetchBackendMediaFiles(), { retries: 1, retryDelayMs: 250 });
         if (!active) return;
         syncMediaFromBackend(backendMedia);
@@ -698,6 +718,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     { id: 'overview', label: "Vue d'ensemble", icon: LayoutDashboard },
     { id: 'projects', label: 'Projets', icon: FolderOpen },
     { id: 'services', label: 'Services', icon: Settings },
+    { id: 'team', label: 'Équipe', icon: Users },
     { id: 'blog', label: 'Blog', icon: FileText },
     { id: 'media', label: 'Médiathèque', icon: ImageIcon },
     { id: 'content', label: 'Contenus pages', icon: FileText },
@@ -2610,6 +2631,36 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
           deleteProject={deleteProject}
           loadProjectsFromBackend={loadProjectsFromBackend}
         />
+      );
+    }
+
+
+    if (currentSection === 'team') {
+      return (
+        <div className="space-y-6">
+          <AdminPageHeader title="Gestion de l'équipe" subtitle="Créez, publiez, modifiez ou supprimez les profils affichés sur /equipe." />
+          {teamError ? <AdminErrorState label={teamError} /> : null}
+          <AdminPanel title={teamEditingId ? 'Modifier un membre' : 'Nouveau membre'}>
+            <div className="grid gap-4 md:grid-cols-2">
+              <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Nom complet" value={teamForm.name || ''} onChange={(e) => setTeamForm({ ...teamForm, name: e.target.value })} />
+              <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Rôle / poste" value={teamForm.role || ''} onChange={(e) => setTeamForm({ ...teamForm, role: e.target.value })} />
+              <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Photo (media:id ou URL)" value={teamForm.photo || ''} onChange={(e) => setTeamForm({ ...teamForm, photo: e.target.value })} />
+              <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Email" value={teamForm.email || ''} onChange={(e) => setTeamForm({ ...teamForm, email: e.target.value })} />
+              <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Téléphone" value={teamForm.phone || ''} onChange={(e) => setTeamForm({ ...teamForm, phone: e.target.value })} />
+              <input className="rounded-xl border border-[#dce7ec] px-4 py-3" type="number" placeholder="Ordre" value={teamForm.order || 0} onChange={(e) => setTeamForm({ ...teamForm, order: Number(e.target.value) })} />
+              <select className="rounded-xl border border-[#dce7ec] px-4 py-3" value={teamForm.status || 'draft'} onChange={(e) => setTeamForm({ ...teamForm, status: e.target.value as TeamMember['status'] })}><option value="draft">Brouillon</option><option value="published">Publié</option><option value="archived">Archivé</option></select>
+              <label className="flex items-center gap-2 text-sm text-[#52666d]"><input type="checkbox" checked={Boolean(teamForm.featured)} onChange={(e) => setTeamForm({ ...teamForm, featured: e.target.checked })} /> Mis en avant</label>
+              <textarea className="rounded-xl border border-[#dce7ec] px-4 py-3 md:col-span-2" rows={4} placeholder="Bio courte" value={teamForm.bio || ''} onChange={(e) => setTeamForm({ ...teamForm, bio: e.target.value })} />
+              <textarea className="rounded-xl border border-[#dce7ec] px-4 py-3 md:col-span-2" rows={3} placeholder="Liens sociaux: platform | Label | https://... (un par ligne)" value={(teamForm as any).socialLinksText || ''} onChange={(e) => setTeamForm({ ...(teamForm as any), socialLinksText: e.target.value })} />
+            </div>
+            <div className="mt-4 flex gap-2"><AdminButton intent="primary" onClick={() => void saveTeamForm()}><Save size={15} /> Enregistrer</AdminButton><AdminButton onClick={() => void loadTeamFromBackend()}><RotateCcw size={15} /> Rafraîchir</AdminButton></div>
+          </AdminPanel>
+          <AdminPanel title={`Membres (${teamMembers.length})`}>
+            {teamLoading ? <AdminLoadingState label="Chargement de l'équipe..." /> : null}
+            {!teamLoading && teamMembers.length === 0 ? <AdminEmptyState label="Aucun membre créé." /> : null}
+            <div className="space-y-3">{teamMembers.map((member) => (<div key={member.id} className="rounded-xl border border-[#e4edf1] bg-white p-4 md:flex md:items-center md:justify-between"><div><p className="font-semibold text-[#273a41]">{member.name}</p><p className="text-sm text-[#6f7f85]">{member.role} • {member.status}</p></div><div className="mt-3 flex gap-2 md:mt-0"><AdminButton size="sm" onClick={() => { setTeamEditingId(member.id); setTeamForm({ ...member, socialLinksText: member.socialLinks.map((l) => `${l.platform} | ${l.label} | ${l.url}`).join('\n') } as any); }}><Pencil size={14} /> Modifier</AdminButton><AdminButton size="sm" intent="danger" onClick={async () => { await deleteBackendTeamMember(member.id); await loadTeamFromBackend(); }}><Trash2 size={14} /> Supprimer</AdminButton></div></div>))}</div>
+          </AdminPanel>
+        </div>
       );
     }
 

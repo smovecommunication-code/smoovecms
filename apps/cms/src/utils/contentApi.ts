@@ -1,5 +1,5 @@
 import { RUNTIME_CONFIG } from '../config/runtimeConfig';
-import { isMediaFileArray, isProject, isProjectArray, type BlogPost, type MediaFile, type Project, type Service } from '../domain/contentSchemas';
+import { isMediaFileArray, isProject, isProjectArray, type BlogPost, type MediaFile, type Project, type Service, type TeamMember } from '../domain/contentSchemas';
 import type { HomePageContentSettings } from '../data/pageContentSeed';
 
 interface ApiEnvelope<T> {
@@ -425,6 +425,23 @@ export async function deleteBackendProject(id: string): Promise<void> {
   await request('/projects/' + id, { method: 'DELETE' });
 }
 
+
+
+export async function fetchBackendTeamMembers(): Promise<TeamMember[]> {
+  const data = await request<{ team: TeamMember[] }>('/content/team');
+  return Array.isArray(data.data?.team) ? data.data.team : [];
+}
+
+export async function saveBackendTeamMember(member: Partial<TeamMember>): Promise<TeamMember> {
+  const method = member.id ? 'PATCH' : 'POST';
+  const path = member.id ? `/content/team/${encodeURIComponent(member.id)}` : '/content/team';
+  const data = await request<{ member: TeamMember }>(path, { method, body: JSON.stringify(member) });
+  return data.data?.member as TeamMember;
+}
+
+export async function deleteBackendTeamMember(id: string): Promise<void> {
+  await request<{ deleted: boolean }>(`/content/team/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
 
 export async function fetchBackendServices(): Promise<Service[]> {
   const body = await request<{ services: Service[] }>('/services');
