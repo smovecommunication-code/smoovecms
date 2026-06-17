@@ -269,25 +269,13 @@ function getUserRoleTone(role: AppUser['role']): string {
   return 'bg-[#f4f7f9] text-[#4e5d63] border-[#d9e1e5]';
 }
 
-const isValidIsoDate = (value: string): boolean => !Number.isNaN(Date.parse(value));
 
 const getBlogPublishabilityErrors = (form: BlogFormState): Partial<Record<keyof BlogFormState, string>> => {
   const errors: Partial<Record<keyof BlogFormState, string>> = {};
-  if (!form.title.trim()) errors.title = 'Veuillez saisir le nom de l’article.';
-
-  const normalized = normalizeSlug(form.slug, form.title);
-  if (!normalized || !isValidSlug(normalized)) {
-    errors.slug = 'Slug invalide pour publication (format attendu: mots-separes-par-tirets).';
-  }
-
+  if (!form.title.trim()) errors.title = 'Veuillez saisir le titre de l’article.';
   if (form.featuredImage.trim() && !isValidMediaField(form.featuredImage)) {
     errors.featuredImage = 'Utilisez une URL valide ou une référence media:asset-id existante.';
   }
-
-  if (!isValidIsoDate(form.publishedDate)) {
-    errors.publishedDate = 'Date de publication invalide.';
-  }
-
   return errors;
 };
 
@@ -388,7 +376,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
   const [projectFormErrors, setProjectFormErrors] = useState<Partial<Record<keyof ProjectFormState, string>>>({});
   const [services, setServices] = useState<Service[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-  const [teamForm, setTeamForm] = useState<Partial<TeamMember>>({ name: '', role: '', bio: '', photo: '', status: 'draft', order: 0, socialLinks: [] });
+  const [teamForm, setTeamForm] = useState<Partial<TeamMember>>({ name: '', role: '', bio: '', photo: '', status: 'published', order: 0, socialLinks: [] });
   const [teamEditingId, setTeamEditingId] = useState<string | null>(null);
   const [teamLoading, setTeamLoading] = useState(false);
   const [teamError, setTeamError] = useState('');
@@ -776,7 +764,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       return 'Le format article est invalide (slug/date/image/URL).';
     }
     if (error instanceof ContentApiError && error.code === 'BLOG_NOT_PUBLISHABLE') {
-      return 'Article non publiable: vérifiez titre, slug, image vedette et date de publication.';
+      return 'Article non publiable: vérifiez le titre de l’article.';
     }
     if (error instanceof ContentApiError && error.code === 'BLOG_INVALID_STATUS_TRANSITION') {
       return 'Transition invalide: passez en revue avant publication.';
@@ -801,7 +789,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
         return 'Publication non autorisée pour votre rôle.';
       }
       if (error.message.includes('Missing required publish fields')) {
-        return 'Article non publiable: renseignez au minimum le titre et l’image vedette.';
+        return 'Article non publiable: renseignez le titre de l’article.';
       }
       if (error.message.includes('BLOG_INSTANT_PUBLISHING_DISABLED')) {
         return 'Publication instantanée désactivée: passez par la revue éditoriale et activez la publication pour publier.';
@@ -828,8 +816,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
 
   const validateBlogForm = (form: BlogFormState) => {
     const errors: Partial<Record<keyof BlogFormState, string>> = {};
-    if (!form.title.trim()) errors.title = 'Veuillez saisir le nom de l’article.';
-    if (blogEditorMode === 'create' && !form.featuredImage.trim()) errors.featuredImage = 'Veuillez ajouter une image pour créer l’article.';
+    if (!form.title.trim()) errors.title = 'Veuillez saisir le titre de l’article.';
     if (form.featuredImage.trim() && !isValidMediaField(form.featuredImage)) {
       errors.featuredImage = 'Utilisez une URL valide ou une référence media:asset-id existante.';
     }
@@ -838,9 +825,6 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     }
     if (form.seoDescription && form.seoDescription.trim().length > 320) {
       errors.seoDescription = 'La description SEO doit rester concise (320 caractères max).';
-    }
-    if (form.status === 'published' && blogEditorMode === 'create') {
-      Object.assign(errors, getBlogPublishabilityErrors(form));
     }
     return errors;
   };
@@ -1798,14 +1782,16 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
   };
 
 
-  const loadTeamFromBackend = async () => {
+  const loadTeamFromBackend = async (): Promise<TeamMember[]> => {
     setTeamLoading(true);
     setTeamError('');
     try {
       const backendTeam = await requestWithRetry(() => fetchBackendTeamMembers(), { retries: 1, retryDelayMs: 250 });
       setTeamMembers(backendTeam);
+      return backendTeam;
     } catch (error) {
       setTeamError(getErrorMessage(error));
+      return [];
     } finally {
       setTeamLoading(false);
     }
@@ -1831,10 +1817,13 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     setTeamLoading(true);
     setTeamError('');
     try {
-      await saveBackendTeamMember({ ...teamForm, socialLinks });
-      setTeamForm({ name: '', role: '', bio: '', photo: '', status: 'draft', order: 0, socialLinks: [] });
+      const savedMember = await saveBackendTeamMember({ ...teamForm, socialLinks });
+      const refreshedTeam = await loadTeamFromBackend();
+      if (!refreshedTeam.some((member) => member.id === savedMember.id)) {
+        throw new Error("Le membre enregistré n’apparaît pas encore dans la liste CMS rafraîchie.");
+      }
+      setTeamForm({ name: '', role: '', bio: '', photo: '', status: 'published', order: 0, socialLinks: [] });
       setTeamEditingId(null);
-      await loadTeamFromBackend();
       showSuccess("Membre de l'équipe enregistré.");
     } catch (error) {
       setTeamError(getErrorMessage(error));
@@ -2468,7 +2457,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
                   .join(', ')}.
               </p>
             ) : (
-              <p className="text-[12px] text-emerald-700">Contrat de publication valide (titre, slug, image, date).</p>
+              <p className="text-[12px] text-emerald-700">Contrat de publication valide (titre requis uniquement).</p>
             )}
             <label className="block">
               <span className="text-[14px] text-[#6f7f85]">Statut</span>
@@ -2732,7 +2721,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
               <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Email" value={teamForm.email || ''} onChange={(e) => setTeamForm({ ...teamForm, email: e.target.value })} />
               <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Téléphone" value={teamForm.phone || ''} onChange={(e) => setTeamForm({ ...teamForm, phone: e.target.value })} />
               <input className="rounded-xl border border-[#dce7ec] px-4 py-3" type="number" placeholder="Ordre" value={teamForm.order || 0} onChange={(e) => setTeamForm({ ...teamForm, order: Number(e.target.value) })} />
-              <select className="rounded-xl border border-[#dce7ec] px-4 py-3" value={teamForm.status || 'draft'} onChange={(e) => setTeamForm({ ...teamForm, status: e.target.value as TeamMember['status'] })}><option value="draft">Brouillon</option><option value="published">Publié</option><option value="archived">Archivé</option></select>
+              <select className="rounded-xl border border-[#dce7ec] px-4 py-3" value={teamForm.status || 'published'} onChange={(e) => setTeamForm({ ...teamForm, status: e.target.value as TeamMember['status'] })}><option value="draft">Brouillon</option><option value="published">Publié</option><option value="archived">Archivé</option></select>
               <label className="flex items-center gap-2 text-sm text-[#52666d]"><input type="checkbox" checked={Boolean(teamForm.featured)} onChange={(e) => setTeamForm({ ...teamForm, featured: e.target.checked })} /> Mis en avant</label>
               <textarea className="rounded-xl border border-[#dce7ec] px-4 py-3 md:col-span-2" rows={4} placeholder="Bio courte" value={teamForm.bio || ''} onChange={(e) => setTeamForm({ ...teamForm, bio: e.target.value })} />
               <textarea className="rounded-xl border border-[#dce7ec] px-4 py-3 md:col-span-2" rows={3} placeholder="Liens sociaux: platform | Label | https://... (un par ligne)" value={(teamForm as any).socialLinksText || ''} onChange={(e) => setTeamForm({ ...(teamForm as any), socialLinksText: e.target.value })} />
@@ -2742,7 +2731,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
           <AdminPanel title={`Membres (${teamMembers.length})`}>
             {teamLoading ? <AdminLoadingState label="Chargement de l'équipe..." /> : null}
             {!teamLoading && teamMembers.length === 0 ? <AdminEmptyState label="Aucun membre créé." /> : null}
-            <div className="space-y-3">{teamMembers.map((member) => (<div key={member.id} className="rounded-xl border border-[#e4edf1] bg-white p-4 md:flex md:items-center md:justify-between"><div><p className="font-semibold text-[#273a41]">{member.name}</p><p className="text-sm text-[#6f7f85]">{member.role} • {member.status}</p></div><div className="mt-3 flex gap-2 md:mt-0"><AdminButton size="sm" onClick={() => { setTeamEditingId(member.id); setTeamForm({ ...member, socialLinksText: (member.socialLinks || []).map((l) => `${l.platform} | ${l.label} | ${l.url}`).join('\n') } as any); }}><Pencil size={14} /> Modifier</AdminButton><AdminButton size="sm" intent="danger" disabled={!canDeleteContent} onClick={async () => { await deleteBackendTeamMember(member.id); await loadTeamFromBackend(); }}><Trash2 size={14} /> Supprimer</AdminButton></div></div>))}</div>
+            <div className="space-y-3">{teamMembers.map((member) => (<div key={member.id} className="rounded-xl border border-[#e4edf1] bg-white p-4 md:flex md:items-center md:justify-between"><div><p className="font-semibold text-[#273a41]">{member.name}</p><p className="text-sm text-[#6f7f85]">{member.role} • {member.status}</p></div><div className="mt-3 flex gap-2 md:mt-0"><AdminButton size="sm" onClick={() => { setTeamEditingId(member.id); setTeamForm({ ...member, socialLinksText: (member.socialLinks || []).map((l) => `${l.platform} | ${l.label} | ${l.url}`).join('\n') } as any); }}><Pencil size={14} /> Modifier</AdminButton><AdminButton size="sm" intent="danger" disabled={!canDeleteContent} onClick={async () => { await deleteBackendTeamMember(member.id); const refreshedTeam = await loadTeamFromBackend(); if (!refreshedTeam.some((entry) => entry.id === member.id)) showSuccess("Membre de l'équipe supprimé."); }}><Trash2 size={14} /> Supprimer</AdminButton></div></div>))}</div>
           </AdminPanel>
         </div>
       );

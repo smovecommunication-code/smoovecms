@@ -287,6 +287,20 @@ function normalizeProjectCollection(value: unknown): Project[] {
   throw new ContentApiError('Project list response is missing valid projects.', 'PROJECT_LIST_RESPONSE_INVALID', 502, value);
 }
 
+
+function normalizeTeamCollection(value: unknown): TeamMember[] {
+  if (Array.isArray(value)) return value as TeamMember[];
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    if (Array.isArray(record.team)) return record.team as TeamMember[];
+    if (Array.isArray(record.members)) return record.members as TeamMember[];
+    if (Array.isArray(record.items)) return record.items as TeamMember[];
+    if (Array.isArray(record.data)) return record.data as TeamMember[];
+    if (record.data && typeof record.data === 'object') return normalizeTeamCollection(record.data);
+  }
+  return [];
+}
+
 function normalizeCreatedProject(value: unknown): Project {
   if (isProject(value)) return value;
   if (value && typeof value === 'object') {
@@ -442,8 +456,8 @@ export async function deleteBackendProject(id: string): Promise<void> {
 
 
 export async function fetchBackendTeamMembers(): Promise<TeamMember[]> {
-  const data = await request<{ team: TeamMember[] }>('/team');
-  return Array.isArray(data.data?.team) ? data.data.team : [];
+  const data = await request<unknown>('/team');
+  return normalizeTeamCollection(data.data ?? data);
 }
 
 export async function saveBackendTeamMember(member: Partial<TeamMember>): Promise<TeamMember> {
