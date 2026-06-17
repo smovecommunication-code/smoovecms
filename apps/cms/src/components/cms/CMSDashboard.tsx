@@ -87,7 +87,7 @@ import { summarizeReferences, type BackendMediaReference } from './dashboard/med
 import { resolveCmsPreviewReference } from './dashboard/mediaPreview';
 import { buildServicePayload, type ServiceFormPayloadState } from './dashboard/servicePayload';
 import { appendHeroBackgroundItemWithMedia, assignHeroBackgroundMedia } from './dashboard/pageContentHeroActions';
-import type { BlogContentBlock, BlogPost, MediaFile, Project, Service } from '../../domain/contentSchemas';
+import type { BlogContentBlock, BlogPost, MediaFile, Project, Service, TeamMember } from '../../domain/contentSchemas';
 import { fetchNewsletterSubscribers, updateNewsletterSubscriberStatus, type NewsletterSubscriber } from '../../utils/newsletterApi';
 import { fetchContactLeads, type ContactLead } from '../../utils/contactLeadsApi';
 import { getPublicSiteUrl } from '../../utils/publicSiteUrl';
@@ -1791,6 +1791,70 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     }
   };
 
+
+  const loadTeamFromBackend = async () => {
+    setTeamLoading(true);
+    setTeamError('');
+    try {
+      const backendTeam = await requestWithRetry(() => fetchBackendTeamMembers(), { retries: 1, retryDelayMs: 250 });
+      setTeamMembers(backendTeam);
+    } catch (error) {
+      setTeamError(getErrorMessage(error));
+    } finally {
+      setTeamLoading(false);
+    }
+  };
+
+  const saveTeamForm = async () => {
+    if (!canEditContent) {
+      setTeamError('Modification équipe non autorisée pour votre rôle.');
+      return;
+    }
+    if (!teamForm.name?.trim() || !teamForm.role?.trim()) {
+      setTeamError('Le nom et le rôle sont obligatoires.');
+      return;
+    }
+    const socialLinks = `${(teamForm as any).socialLinksText || ''}`
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [platform = '', label = '', url = ''] = line.split('|').map((part) => part.trim());
+        return { platform, label: label || platform, url };
+      });
+    setTeamLoading(true);
+    setTeamError('');
+    try {
+      await saveBackendTeamMember({ ...teamForm, socialLinks });
+      setTeamForm({ name: '', role: '', bio: '', photo: '', status: 'draft', order: 0, socialLinks: [] });
+      setTeamEditingId(null);
+      await loadTeamFromBackend();
+      showSuccess("Membre de l'équipe enregistré.");
+    } catch (error) {
+      setTeamError(getErrorMessage(error));
+    } finally {
+      setTeamLoading(false);
+    }
+  };
+
+  const handleTeamPhotoUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    if (!file) return;
+    setIsUploadingMedia(true);
+    setTeamError('');
+    try {
+      const uploaded = await uploadFileToMediaLibrary(file);
+      setTeamForm((prev) => ({ ...prev, photo: toMediaReferenceValue(uploaded.id) }));
+      showSuccess("Photo uploadée dans Cloudinary et liée au membre.");
+    } catch (error) {
+      setTeamError(getErrorMessage(error));
+    } finally {
+      setIsUploadingMedia(false);
+      input.value = '';
+    }
+  };
+
   const handleProjectMediaUpload = async (field: 'cardImage' | 'heroImage' | 'socialImage' | 'galleryImages', event: ChangeEvent<HTMLInputElement>) => {
     const input = event.currentTarget;
     const file = input?.files?.[0];
@@ -2644,7 +2708,17 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
             <div className="grid gap-4 md:grid-cols-2">
               <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Nom complet" value={teamForm.name || ''} onChange={(e) => setTeamForm({ ...teamForm, name: e.target.value })} />
               <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Rôle / poste" value={teamForm.role || ''} onChange={(e) => setTeamForm({ ...teamForm, role: e.target.value })} />
-              <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Photo (media:id ou URL)" value={teamForm.photo || ''} onChange={(e) => setTeamForm({ ...teamForm, photo: e.target.value })} />
+              <div className="space-y-2 md:col-span-2">
+                <input className="w-full rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Photo (media:id ou URL)" value={teamForm.photo || ''} onChange={(e) => setTeamForm({ ...teamForm, photo: e.target.value })} />
+                <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                  <select className="rounded-xl border border-[#dce7ec] px-4 py-3" value={mediaFiles.some((file) => teamForm.photo === toMediaReferenceValue(file.id)) ? teamForm.photo || '' : ''} onChange={(e) => setTeamForm({ ...teamForm, photo: e.target.value })}>
+                    <option value="">Choisir une photo Cloudinary depuis la médiathèque…</option>
+                    {mediaFiles.filter((file) => file.type === 'image').map((file) => <option key={file.id} value={toMediaReferenceValue(file.id)}>{file.label || file.title || file.name}</option>)}
+                  </select>
+                  <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[#00b3e8] px-4 py-3 text-sm font-semibold text-[#007fa3]"><Upload size={14} /> Uploader photo<input type="file" accept="image/*" className="hidden" disabled={isUploadingMedia} onChange={handleTeamPhotoUpload} /></label>
+                </div>
+                {teamForm.photo ? <img src={resolveCmsPreviewReference(teamForm.photo, teamForm.name || 'Photo équipe').src} alt="Aperçu photo équipe" className="h-24 w-24 rounded-xl object-cover" onError={(event) => { event.currentTarget.style.display = 'none'; }} /> : <p className="text-xs text-[#6f7f85]">Les nouvelles photos doivent utiliser une référence <code>media:&lt;id&gt;</code> Cloudinary.</p>}
+              </div>
               <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Email" value={teamForm.email || ''} onChange={(e) => setTeamForm({ ...teamForm, email: e.target.value })} />
               <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Téléphone" value={teamForm.phone || ''} onChange={(e) => setTeamForm({ ...teamForm, phone: e.target.value })} />
               <input className="rounded-xl border border-[#dce7ec] px-4 py-3" type="number" placeholder="Ordre" value={teamForm.order || 0} onChange={(e) => setTeamForm({ ...teamForm, order: Number(e.target.value) })} />
@@ -2658,7 +2732,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
           <AdminPanel title={`Membres (${teamMembers.length})`}>
             {teamLoading ? <AdminLoadingState label="Chargement de l'équipe..." /> : null}
             {!teamLoading && teamMembers.length === 0 ? <AdminEmptyState label="Aucun membre créé." /> : null}
-            <div className="space-y-3">{teamMembers.map((member) => (<div key={member.id} className="rounded-xl border border-[#e4edf1] bg-white p-4 md:flex md:items-center md:justify-between"><div><p className="font-semibold text-[#273a41]">{member.name}</p><p className="text-sm text-[#6f7f85]">{member.role} • {member.status}</p></div><div className="mt-3 flex gap-2 md:mt-0"><AdminButton size="sm" onClick={() => { setTeamEditingId(member.id); setTeamForm({ ...member, socialLinksText: member.socialLinks.map((l) => `${l.platform} | ${l.label} | ${l.url}`).join('\n') } as any); }}><Pencil size={14} /> Modifier</AdminButton><AdminButton size="sm" intent="danger" onClick={async () => { await deleteBackendTeamMember(member.id); await loadTeamFromBackend(); }}><Trash2 size={14} /> Supprimer</AdminButton></div></div>))}</div>
+            <div className="space-y-3">{teamMembers.map((member) => (<div key={member.id} className="rounded-xl border border-[#e4edf1] bg-white p-4 md:flex md:items-center md:justify-between"><div><p className="font-semibold text-[#273a41]">{member.name}</p><p className="text-sm text-[#6f7f85]">{member.role} • {member.status}</p></div><div className="mt-3 flex gap-2 md:mt-0"><AdminButton size="sm" onClick={() => { setTeamEditingId(member.id); setTeamForm({ ...member, socialLinksText: (member.socialLinks || []).map((l) => `${l.platform} | ${l.label} | ${l.url}`).join('\n') } as any); }}><Pencil size={14} /> Modifier</AdminButton><AdminButton size="sm" intent="danger" disabled={!canDeleteContent} onClick={async () => { await deleteBackendTeamMember(member.id); await loadTeamFromBackend(); }}><Trash2 size={14} /> Supprimer</AdminButton></div></div>))}</div>
           </AdminPanel>
         </div>
       );

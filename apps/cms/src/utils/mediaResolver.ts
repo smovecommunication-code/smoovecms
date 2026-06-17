@@ -8,7 +8,9 @@ const FORBIDDEN_RENDER_SCHEME_PATTERN = /^(?:blob|file|data):/i;
 const LOCAL_DISK_PATH_PATTERN = /^(?:[a-zA-Z]:[\\/]|~[\\/]|\/Users\/|\/home\/|\/workspace\/|\/var\/|\/tmp\/|server\/data\/|api\/server\/data\/)/;
 
 type MediaUrlCandidate = Partial<MediaFile> & {
+  secureUrl?: string;
   publicUrl?: string;
+  posterUrl?: string;
   path?: string;
 };
 
@@ -28,6 +30,7 @@ const logUnresolved = (reason: string, value: unknown) => {
 };
 
 const isSafeHttpUrl = (value: string): boolean => HTTP_URL_PATTERN.test(value);
+const isCloudinaryUrl = (value: string): boolean => isSafeHttpUrl(value) && /\bres\.cloudinary\.com\b/i.test(value);
 
 const isForbiddenRenderableValue = (value: string): boolean => {
   const normalized = value.trim();
@@ -87,7 +90,9 @@ export const resolveCmsMediaUrl = (input: unknown, mediaList: MediaFile[] = []):
 
   if (typeof input !== 'object') return '';
   const media = input as MediaUrlCandidate & { storagePath?: string };
-  const candidates = [media.url, media.thumbnailUrl, media.publicUrl, media.publicPath, media.path, media.storagePath];
+  const cloudinaryCandidates = [media.secureUrl, media.url, media.thumbnailUrl, media.posterUrl, media.publicUrl]
+    .filter((candidate): candidate is string => typeof candidate === 'string' && isCloudinaryUrl(candidate));
+  const candidates = [...cloudinaryCandidates, media.secureUrl, media.thumbnailUrl, media.posterUrl, media.url, media.publicUrl, media.publicPath, media.path, media.storagePath];
   for (const candidate of candidates) {
     const resolved = typeof candidate === 'string' ? absolutizeMediaPath(candidate) : '';
     if (resolved) return resolved;

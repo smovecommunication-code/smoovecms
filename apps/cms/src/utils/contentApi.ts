@@ -256,7 +256,20 @@ export interface MediaUsageImpact {
   };
 }
 
-const CONTENT_BASE_URL = `${RUNTIME_CONFIG.apiBaseUrl}/content`;
+const CONTENT_BASE_URL = safeJoinUrl(RUNTIME_CONFIG.apiBaseUrl, 'content');
+const CONTENT_PATH_PREFIX = /^\/?content(?:\/|$)/;
+
+export function safeJoinUrl(...parts: Array<string | undefined>): string {
+  const [first = '', ...rest] = parts;
+  const base = first.replace(/\/+$/, '');
+  const suffix = rest
+    .map((part) => `${part || ''}`.trim())
+    .filter(Boolean)
+    .map((part) => part.replace(/^\/+|\/+$/g, ''))
+    .filter(Boolean)
+    .join('/');
+  return suffix ? `${base}/${suffix}` : base;
+}
 const DEFAULT_MANAGED_CATEGORIES = ['Communication digitale', 'Branding', 'Web'];
 const DEFAULT_MANAGED_TAGS = ['Conseil', 'Production', 'Growth'];
 
@@ -292,7 +305,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<ApiEnve
     headers.set('Content-Type', 'application/json');
   }
 
-  const response = await fetch(`${CONTENT_BASE_URL}${path}`, {
+  const normalizedPath = path.replace(CONTENT_PATH_PREFIX, '').replace(/^\/+/, '');
+  const response = await fetch(safeJoinUrl(CONTENT_BASE_URL, normalizedPath), {
     ...init,
     headers,
     cache: 'no-store',
@@ -428,19 +442,19 @@ export async function deleteBackendProject(id: string): Promise<void> {
 
 
 export async function fetchBackendTeamMembers(): Promise<TeamMember[]> {
-  const data = await request<{ team: TeamMember[] }>('/content/team');
+  const data = await request<{ team: TeamMember[] }>('/team');
   return Array.isArray(data.data?.team) ? data.data.team : [];
 }
 
 export async function saveBackendTeamMember(member: Partial<TeamMember>): Promise<TeamMember> {
   const method = member.id ? 'PATCH' : 'POST';
-  const path = member.id ? `/content/team/${encodeURIComponent(member.id)}` : '/content/team';
+  const path = member.id ? `/team/${encodeURIComponent(member.id)}` : '/team';
   const data = await request<{ member: TeamMember }>(path, { method, body: JSON.stringify(member) });
   return data.data?.member as TeamMember;
 }
 
 export async function deleteBackendTeamMember(id: string): Promise<void> {
-  await request<{ deleted: boolean }>(`/content/team/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  await request<{ deleted: boolean }>(`/team/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
 export async function fetchBackendServices(): Promise<Service[]> {
