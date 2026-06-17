@@ -343,6 +343,12 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
   const [contentHealth, setContentHealth] = useState<ContentHealthSummary | null>(null);
   const [isHydratingBackend, setIsHydratingBackend] = useState(false);
 
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.debug('[cms-navigation]', { activeSection: currentSection });
+    }
+  }, [currentSection]);
+
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [postsLoading, setPostsLoading] = useState(true);
   const [postsError, setPostsError] = useState('');
@@ -2700,6 +2706,10 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
 
 
     if (currentSection === 'team') {
+      if (import.meta.env.DEV) {
+        console.debug('[cms-team]', 'rendered');
+      }
+
       return (
         <div className="space-y-6">
           <AdminPageHeader title="Gestion de l'équipe" subtitle="Créez, publiez, modifiez ou supprimez les profils affichés sur /equipe." />

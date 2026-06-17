@@ -7,6 +7,11 @@ describe('cmsRouting', () => {
     expect(resolveCmsSectionFromRoute('cms-services')).toBe('services');
   });
 
+  it('resolves team section from cms route', () => {
+    expect(resolveCmsSectionFromRoute('cms/team')).toBe('team');
+    expect(resolveCmsSectionFromRoute('cms-team')).toBe('team');
+  });
+
   it('keeps overview fallback for unknown section', () => {
     expect(resolveCmsSectionFromRoute('cms/unknown')).toBe('overview');
   });
