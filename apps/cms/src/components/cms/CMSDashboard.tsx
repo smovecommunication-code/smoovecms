@@ -1798,6 +1798,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
   };
 
   const saveTeamForm = async () => {
+    if (teamLoading) return;
     if (!canEditContent) {
       setTeamError('Modification équipe non autorisée pour votre rôle.');
       return;
@@ -1814,11 +1815,18 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
         const [platform = '', label = '', url = ''] = line.split('|').map((part) => part.trim());
         return { platform, label: label || platform, url };
       });
+    const payload = { ...teamForm, socialLinks };
+    console.debug('[cms-team-save]', { payload });
     setTeamLoading(true);
     setTeamError('');
     try {
-      const savedMember = await saveBackendTeamMember({ ...teamForm, socialLinks });
+      const savedMember = await saveBackendTeamMember(payload);
+      console.debug('[cms-team-save-response]', savedMember);
       const refreshedTeam = await loadTeamFromBackend();
+      console.debug('[cms-team-list-after-save]', { count: refreshedTeam.length });
+      if (!savedMember?.id) {
+        throw new Error("L’API n’a pas confirmé l’identifiant du membre enregistré.");
+      }
       if (!refreshedTeam.some((member) => member.id === savedMember.id)) {
         throw new Error("Le membre enregistré n’apparaît pas encore dans la liste CMS rafraîchie.");
       }
@@ -2704,7 +2712,13 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
           <AdminPageHeader title="Gestion de l'équipe" subtitle="Créez, publiez, modifiez ou supprimez les profils affichés sur /equipe." />
           {teamError ? <AdminErrorState label={teamError} /> : null}
           <AdminPanel title={teamEditingId ? 'Modifier un membre' : 'Nouveau membre'}>
-            <div className="grid gap-4 md:grid-cols-2">
+            <form
+              className="grid gap-4 md:grid-cols-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void saveTeamForm();
+              }}
+            >
               <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Nom complet" value={teamForm.name || ''} onChange={(e) => setTeamForm({ ...teamForm, name: e.target.value })} />
               <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Rôle / poste" value={teamForm.role || ''} onChange={(e) => setTeamForm({ ...teamForm, role: e.target.value })} />
               <div className="space-y-2 md:col-span-2">
@@ -2725,8 +2739,8 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
               <label className="flex items-center gap-2 text-sm text-[#52666d]"><input type="checkbox" checked={Boolean(teamForm.featured)} onChange={(e) => setTeamForm({ ...teamForm, featured: e.target.checked })} /> Mis en avant</label>
               <textarea className="rounded-xl border border-[#dce7ec] px-4 py-3 md:col-span-2" rows={4} placeholder="Bio courte" value={teamForm.bio || ''} onChange={(e) => setTeamForm({ ...teamForm, bio: e.target.value })} />
               <textarea className="rounded-xl border border-[#dce7ec] px-4 py-3 md:col-span-2" rows={3} placeholder="Liens sociaux: platform | Label | https://... (un par ligne)" value={(teamForm as any).socialLinksText || ''} onChange={(e) => setTeamForm({ ...(teamForm as any), socialLinksText: e.target.value })} />
-            </div>
-            <div className="mt-4 flex gap-2"><AdminButton intent="primary" onClick={() => void saveTeamForm()}><Save size={15} /> Enregistrer</AdminButton><AdminButton onClick={() => void loadTeamFromBackend()}><RotateCcw size={15} /> Rafraîchir</AdminButton></div>
+              <div className="mt-1 flex gap-2 md:col-span-2"><AdminButton type="submit" intent="primary" disabled={teamLoading || !canEditContent}><Save size={15} /> {teamLoading ? 'Enregistrement…' : 'Enregistrer'}</AdminButton><AdminButton type="button" disabled={teamLoading} onClick={() => void loadTeamFromBackend()}><RotateCcw size={15} /> Rafraîchir</AdminButton></div>
+            </form>
           </AdminPanel>
           <AdminPanel title={`Membres (${teamMembers.length})`}>
             {teamLoading ? <AdminLoadingState label="Chargement de l'équipe..." /> : null}

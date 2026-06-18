@@ -463,8 +463,12 @@ export async function fetchBackendTeamMembers(): Promise<TeamMember[]> {
 export async function saveBackendTeamMember(member: Partial<TeamMember>): Promise<TeamMember> {
   const method = member.id ? 'PATCH' : 'POST';
   const path = member.id ? `/team/${encodeURIComponent(member.id)}` : '/team';
-  const data = await request<{ member: TeamMember }>(path, { method, body: JSON.stringify(member) });
-  return data.data?.member as TeamMember;
+  const response = await request<{ member: TeamMember }>(path, { method, body: JSON.stringify(member) });
+  const savedMember = response.data?.member;
+  if (!savedMember?.id) {
+    throw new ContentApiError('Team save response is missing the persisted member.', 'TEAM_SAVE_RESPONSE_INVALID', 502, response);
+  }
+  return savedMember;
 }
 
 export async function deleteBackendTeamMember(id: string): Promise<void> {
