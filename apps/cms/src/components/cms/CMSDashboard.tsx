@@ -1783,8 +1783,9 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
   };
 
 
-  const loadTeamFromBackend = async (): Promise<TeamMember[]> => {
-    setTeamLoading(true);
+  const loadTeamFromBackend = async (options: { manageLoading?: boolean } = {}): Promise<TeamMember[]> => {
+    const manageLoading = options.manageLoading ?? true;
+    if (manageLoading) setTeamLoading(true);
     setTeamError('');
     try {
       const backendTeam = await requestWithRetry(() => fetchBackendTeamMembers(), { retries: 1, retryDelayMs: 250 });
@@ -1794,7 +1795,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       setTeamError(getErrorMessage(error));
       return [];
     } finally {
-      setTeamLoading(false);
+      if (manageLoading) setTeamLoading(false);
     }
   };
 
@@ -1817,17 +1818,22 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
         return { platform, label: label || platform, url };
       });
     const payload = { ...teamForm, socialLinks };
+    console.debug('[team-submit-fired]', payload);
     console.debug('[cms-team-save]', { payload });
     setTeamLoading(true);
     setTeamError('');
     try {
       const savedMember = await saveBackendTeamMember(payload);
       console.debug('[cms-team-save-response]', savedMember);
-      const refreshedTeam = await loadTeamFromBackend();
-      console.debug('[cms-team-list-after-save]', { count: refreshedTeam.length });
       if (!savedMember?.id) {
         throw new Error("L’API n’a pas confirmé l’identifiant du membre enregistré.");
       }
+      setTeamMembers((previous) => {
+        const withoutSaved = previous.filter((member) => member.id !== savedMember.id);
+        return [...withoutSaved, savedMember].sort((a, b) => Number(a.order || 0) - Number(b.order || 0) || a.name.localeCompare(b.name, 'fr'));
+      });
+      const refreshedTeam = await loadTeamFromBackend({ manageLoading: false });
+      console.debug('[cms-team-list-after-save]', { count: refreshedTeam.length });
       if (!refreshedTeam.some((member) => member.id === savedMember.id)) {
         throw new Error("Le membre enregistré n’apparaît pas encore dans la liste CMS rafraîchie.");
       }
@@ -2715,9 +2721,9 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
           <AdminPanel title={teamEditingId ? 'Modifier un membre' : 'Nouveau membre'}>
             <form
               className="grid gap-4 md:grid-cols-2"
-              onSubmit={(event) => {
+              onSubmit={async (event) => {
                 event.preventDefault();
-                void saveTeamForm();
+                await saveTeamForm();
               }}
             >
               <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Nom complet" value={teamForm.name || ''} onChange={(e) => setTeamForm({ ...teamForm, name: e.target.value })} />
