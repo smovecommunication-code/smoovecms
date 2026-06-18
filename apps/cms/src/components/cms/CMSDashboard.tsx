@@ -2728,16 +2728,20 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
             >
               <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Nom complet" value={teamForm.name || ''} onChange={(e) => setTeamForm({ ...teamForm, name: e.target.value })} />
               <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Rôle / poste" value={teamForm.role || ''} onChange={(e) => setTeamForm({ ...teamForm, role: e.target.value })} />
-              <div className="space-y-2 md:col-span-2">
-                <input className="w-full rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Photo (media:id ou URL)" value={teamForm.photo || ''} onChange={(e) => setTeamForm({ ...teamForm, photo: e.target.value })} />
-                <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-                  <select className="rounded-xl border border-[#dce7ec] px-4 py-3" value={mediaFiles.some((file) => teamForm.photo === toMediaReferenceValue(file.id)) ? teamForm.photo || '' : ''} onChange={(e) => setTeamForm({ ...teamForm, photo: e.target.value })}>
-                    <option value="">Choisir une photo Cloudinary depuis la médiathèque…</option>
-                    {mediaFiles.filter((file) => file.type === 'image').map((file) => <option key={file.id} value={toMediaReferenceValue(file.id)}>{file.label || file.title || file.name}</option>)}
-                  </select>
-                  <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[#00b3e8] px-4 py-3 text-sm font-semibold text-[#007fa3]"><Upload size={14} /> Uploader photo<input type="file" accept="image/*" className="hidden" disabled={isUploadingMedia} onChange={handleTeamPhotoUpload} /></label>
-                </div>
-                {teamForm.photo ? <img src={resolveCmsPreviewReference(teamForm.photo, teamForm.name || 'Photo équipe').src} alt="Aperçu photo équipe" className="h-24 w-24 rounded-xl object-cover" onError={(event) => { event.currentTarget.style.display = 'none'; }} /> : <p className="text-xs text-[#6f7f85]">Les nouvelles photos doivent utiliser une référence <code>media:&lt;id&gt;</code> Cloudinary.</p>}
+              <div className="md:col-span-2">
+                <CMSMediaPicker
+                  fieldName="photo"
+                  label="Photo du membre"
+                  value={teamForm.photo || ''}
+                  mediaFiles={mediaFiles}
+                  disabled={isUploadingMedia}
+                  onChange={(reference) => setTeamForm((previous) => ({ ...previous, photo: reference }))}
+                  onUpload={async (file) => {
+                    const uploaded = await uploadFileToMediaLibrary(file);
+                    showSuccess("Photo uploadée dans Cloudinary et liée au membre.");
+                    return toMediaReferenceValue(uploaded.id);
+                  }}
+                />
               </div>
               <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Email" value={teamForm.email || ''} onChange={(e) => setTeamForm({ ...teamForm, email: e.target.value })} />
               <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Téléphone" value={teamForm.phone || ''} onChange={(e) => setTeamForm({ ...teamForm, phone: e.target.value })} />
@@ -2752,7 +2756,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
           <AdminPanel title={`Membres (${teamMembers.length})`}>
             {teamLoading ? <AdminLoadingState label="Chargement de l'équipe..." /> : null}
             {!teamLoading && teamMembers.length === 0 ? <AdminEmptyState label="Aucun membre créé." /> : null}
-            <div className="space-y-3">{teamMembers.map((member) => (<div key={member.id} className="rounded-xl border border-[#e4edf1] bg-white p-4 md:flex md:items-center md:justify-between"><div><p className="font-semibold text-[#273a41]">{member.name}</p><p className="text-sm text-[#6f7f85]">{member.role} • {member.status}</p></div><div className="mt-3 flex gap-2 md:mt-0"><AdminButton size="sm" onClick={() => { setTeamEditingId(member.id); setTeamForm({ ...member, socialLinksText: (member.socialLinks || []).map((l) => `${l.platform} | ${l.label} | ${l.url}`).join('\n') } as any); }}><Pencil size={14} /> Modifier</AdminButton><AdminButton size="sm" intent="danger" disabled={!canDeleteContent} onClick={async () => { await deleteBackendTeamMember(member.id); const refreshedTeam = await loadTeamFromBackend(); if (!refreshedTeam.some((entry) => entry.id === member.id)) showSuccess("Membre de l'équipe supprimé."); }}><Trash2 size={14} /> Supprimer</AdminButton></div></div>))}</div>
+            <div className="space-y-3">{teamMembers.map((member) => { const photoPreview = member.photo ? resolveCmsPreviewReference(member.photo, member.name || 'Photo équipe', member.name).src : ''; return (<div key={member.id} className="rounded-xl border border-[#e4edf1] bg-white p-4 md:flex md:items-center md:justify-between"><div className="flex items-center gap-4"><div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#eef8fb] text-[#00b3e8]">{photoPreview ? <img src={photoPreview} alt={`Photo de ${member.name}`} className="h-full w-full object-cover" onError={(event) => { event.currentTarget.style.display = 'none'; }} /> : <Users size={24} />}</div><div><p className="font-semibold text-[#273a41]">{member.name}</p><p className="text-sm text-[#6f7f85]">{member.role} • {member.status}</p><p className="mt-1 text-[11px] text-[#8a9aa1]"><code>{member.photo || 'Aucune photo'}</code></p></div></div><div className="mt-3 flex gap-2 md:mt-0"><AdminButton size="sm" onClick={() => { setTeamEditingId(member.id); setTeamForm({ ...member, socialLinksText: (member.socialLinks || []).map((l) => `${l.platform} | ${l.label} | ${l.url}`).join('\n') } as any); }}><Pencil size={14} /> Modifier</AdminButton><AdminButton size="sm" intent="danger" disabled={!canDeleteContent} onClick={async () => { await deleteBackendTeamMember(member.id); const refreshedTeam = await loadTeamFromBackend(); if (!refreshedTeam.some((entry) => entry.id === member.id)) showSuccess("Membre de l'équipe supprimé."); }}><Trash2 size={14} /> Supprimer</AdminButton></div></div>); })}</div>
           </AdminPanel>
         </div>
       );
