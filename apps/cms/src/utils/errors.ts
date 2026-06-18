@@ -2,7 +2,11 @@ import { ContentApiError } from './contentApi';
 
 export function getErrorMessage(error: unknown): string {
   if (error instanceof ContentApiError) {
-    return error.message || error.code || 'Une erreur API est survenue.';
+    const message = error.message || error.code || 'Une erreur API est survenue.';
+    if (error.status >= 500) {
+      return `${message} (${error.code}). Réessayez ou contactez le support si le problème persiste.`;
+    }
+    return message;
   }
 
   if (error instanceof Error) {
