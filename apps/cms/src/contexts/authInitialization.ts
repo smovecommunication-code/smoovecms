@@ -1,4 +1,4 @@
-import { fetchSession, type AuthResult } from '../utils/authApi';
+import { fetchApiReady, fetchSession, type AuthResult, type ReadyResult } from '../utils/authApi';
 import { resolveTrustedSessionUser, type AppUser } from '../utils/securityPolicy';
 
 export interface AuthSessionState {
@@ -14,6 +14,7 @@ export interface AuthInitializationResult {
   sessionState: AuthSessionState | null;
   authError: string | null;
   authNotice: string | null;
+  readyState: ReadyResult | null;
 }
 
 function mapSession(raw: Record<string, unknown> | null | undefined): AuthSessionState | null {
@@ -27,23 +28,27 @@ function mapSession(raw: Record<string, unknown> | null | undefined): AuthSessio
   };
 }
 
-function buildInitNotice(session: AuthResult): string | null {
-  if (session.success) return null;
+function buildInitNotice(session: AuthResult, readyState: ReadyResult): string | null {
+  if (!readyState.ready) return readyState.errorMessage;
+  if (session.success || session.errorCode === 'UNAUTHENTICATED') return null;
   if (session.errorCode === 'REQUEST_TIMEOUT') {
-    return "L'initialisation du serveur a expiré. Vous pouvez vous connecter et réessayer.";
+    return 'La restauration de session a pris trop de temps. Vous pouvez vous connecter maintenant.';
   }
-  if (session.errorCode === 'UNAUTHENTICATED') return null;
   return session.errorMessage ?? 'Initialisation de session indisponible. Réessayez.';
 }
 
 export async function initializeCmsAuth(options?: { timeoutMs?: number }): Promise<AuthInitializationResult> {
-  const session = await fetchSession({ timeoutMs: options?.timeoutMs });
+  const readyState = await fetchApiReady({ timeoutMs: Math.min(options?.timeoutMs ?? 3000, 3000) });
+  const session = readyState.ready
+    ? await fetchSession({ timeoutMs: options?.timeoutMs })
+    : { success: false, user: null, session: null, errorCode: 'API_NOT_READY', errorMessage: readyState.errorMessage, status: readyState.status };
   const user = resolveTrustedSessionUser(session.user);
 
   return {
     user,
     sessionState: mapSession((session.session as Record<string, unknown> | null | undefined) ?? null),
-    authError: session.success ? null : session.errorMessage,
-    authNotice: buildInitNotice(session),
+    authError: session.success || session.errorCode === 'UNAUTHENTICATED' ? null : session.errorMessage,
+    authNotice: buildInitNotice(session, readyState),
+    readyState,
   };
 }

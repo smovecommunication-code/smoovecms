@@ -91,10 +91,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const postLoginRoute = resolvePostLoginRoute(cmsEnabled, user);
 
   const refresh = async (): Promise<AppUser | null> => {
-    const [initialized, providersResult] = await Promise.all([
-      initializeCmsAuth({ timeoutMs: 5000 }),
-      fetchOAuthProviders(),
-    ]);
+    const initialized = await initializeCmsAuth({ timeoutMs: 8000 });
+    const providersResult = initialized.readyState?.ready
+      ? await fetchOAuthProviders()
+      : { providers: null };
     setUser(initialized.user);
     setSessionState(initialized.sessionState);
     setAuthError(initialized.authError);
@@ -149,6 +149,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: message, destination: null };
     }
 
+    const nextUser = resolveTrustedSessionUser(localResult.user);
+    setUser(nextUser);
+    setSessionState(localResult.session ? {
+      sessionId: localResult.session.sessionId ?? null,
+      authenticatedAt: localResult.session.authenticatedAt ?? null,
+      lastActivityAt: localResult.session.lastActivityAt ?? null,
+      authProvider: localResult.session.authProvider ?? 'local',
+      role: localResult.session.role ?? null,
+    } : null);
+    if (nextUser) {
+      return finalizeLogin(nextUser);
+    }
     const refreshedUser = await refresh();
     return finalizeLogin(refreshedUser);
   };
@@ -166,6 +178,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     setAuthError(null);
+    const nextUser = resolveTrustedSessionUser(localResult.user);
+    if (nextUser) {
+      setUser(nextUser);
+      return finalizeLogin(nextUser);
+    }
     const refreshedUser = await refresh();
     return finalizeLogin(refreshedUser);
   };

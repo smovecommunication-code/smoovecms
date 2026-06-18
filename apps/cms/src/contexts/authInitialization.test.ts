@@ -1,12 +1,14 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 
 vi.mock('../utils/authApi', () => ({
+  fetchApiReady: vi.fn(),
   fetchSession: vi.fn(),
 }));
 
-import { fetchSession } from '../utils/authApi';
+import { fetchApiReady, fetchSession } from '../utils/authApi';
 import { initializeCmsAuth } from './authInitialization';
 
+const fetchApiReadyMock = vi.mocked(fetchApiReady);
 const fetchSessionMock = vi.mocked(fetchSession);
 
 describe('initializeCmsAuth', () => {
@@ -15,9 +17,10 @@ describe('initializeCmsAuth', () => {
   });
 
   it('uses backend local session when available', async () => {
+    fetchApiReadyMock.mockResolvedValue({ ready: true, status: 200, statusText: 'ok', db: 'connected', sessions: 'ready', errorCode: null, errorMessage: null });
     fetchSessionMock.mockResolvedValue({
       success: true,
-      user: { id: '1', email: 'admin@test.com', name: 'Admin', role: 'admin', status: 'admin', accountStatus: 'active' },
+      user: { id: '1', email: 'admin@test.com', name: 'Admin', role: 'admin', status: 'staff', accountStatus: 'active' },
       session: { sessionId: 's1', authProvider: 'local', role: 'admin' },
       errorCode: null,
       errorMessage: null,
@@ -33,6 +36,7 @@ describe('initializeCmsAuth', () => {
   });
 
   it('fails open to usable login state when init times out', async () => {
+    fetchApiReadyMock.mockResolvedValue({ ready: true, status: 200, statusText: 'ok', db: 'connected', sessions: 'ready', errorCode: null, errorMessage: null });
     fetchSessionMock.mockResolvedValue({
       success: false,
       user: null,
@@ -46,6 +50,6 @@ describe('initializeCmsAuth', () => {
 
     expect(result.user).toBeNull();
     expect(result.sessionState).toBeNull();
-    expect(result.authNotice).toContain('initialisation du serveur a expiré');
+    expect(result.authNotice).toContain('restauration de session');
   });
 });

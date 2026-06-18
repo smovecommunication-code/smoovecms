@@ -24,10 +24,27 @@ interface AuthApiPayload {
   };
 }
 
+interface ReadyApiResponse {
+  status?: string;
+  db?: string;
+  sessions?: string;
+  ready?: boolean;
+}
+
 interface AuthApiResponse {
   success?: boolean;
   data?: AuthApiPayload | null;
   error?: { code?: string; message?: string } | null;
+}
+
+export interface ReadyResult {
+  ready: boolean;
+  status: number;
+  statusText: string | null;
+  db: string | null;
+  sessions: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
 }
 
 export interface AuthResult {
@@ -45,6 +62,7 @@ export interface AuthResult {
 }
 
 const AUTH_BASE_URL = `${RUNTIME_CONFIG.apiBaseUrl}/auth`;
+const READY_URL = `${RUNTIME_CONFIG.apiBaseUrl}/ready`;
 
 function fallbackErrorMessage(code: string | null, status: number): string {
   if (code === 'UNAUTHENTICATED') return 'Session invalide. Merci de vous reconnecter.';
@@ -86,6 +104,66 @@ function timeoutResult(status = 408): AuthResult {
   return normalizeAuthPayload({ success: false, error: { code: 'REQUEST_TIMEOUT' } }, status);
 }
 
+function readyTimeoutResult(status = 408): ReadyResult {
+  return {
+    ready: false,
+    status,
+    statusText: null,
+    db: null,
+    sessions: null,
+    errorCode: 'REQUEST_TIMEOUT',
+    errorMessage: 'Le contrôle de disponibilité API a expiré. La connexion reste disponible.',
+  };
+}
+
+export async function fetchApiReady(options?: { timeoutMs?: number }): Promise<ReadyResult> {
+  const controller = new AbortController();
+  let timeoutId: ReturnType<typeof globalThis.setTimeout>;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = globalThis.setTimeout(() => {
+      controller.abort();
+      reject(new DOMException('Request timed out', 'AbortError'));
+    }, options?.timeoutMs ?? 3000);
+  });
+
+  try {
+    const response = await Promise.race([
+      fetch(READY_URL, { method: 'GET', cache: 'no-store', signal: controller.signal }),
+      timeoutPromise,
+    ]);
+    const json = (await response.json().catch(() => null)) as ReadyApiResponse | null;
+    const statusText = json?.status ?? null;
+    const db = json?.db ?? null;
+    const sessions = json?.sessions ?? null;
+    const ready = response.ok && (statusText === 'ok' || json?.ready === true) && db === 'connected' && sessions === 'ready';
+
+    return {
+      ready,
+      status: response.status,
+      statusText,
+      db,
+      sessions,
+      errorCode: ready ? null : 'API_NOT_READY',
+      errorMessage: ready ? null : 'API pas encore prête. Réessayez dans quelques secondes.',
+    };
+  } catch (error: unknown) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return readyTimeoutResult();
+    }
+    return {
+      ready: false,
+      status: 503,
+      statusText: null,
+      db: null,
+      sessions: null,
+      errorCode: 'NETWORK_ERROR',
+      errorMessage: 'API indisponible. Vérifiez la connexion puis réessayez.',
+    };
+  } finally {
+    globalThis.clearTimeout(timeoutId!);
+  }
+}
+
 async function request(path: string, init: RequestInit = {}, timeoutMs = RUNTIME_CONFIG.requestTimeoutMs): Promise<AuthResult> {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has('Content-Type')) {
@@ -93,15 +171,24 @@ async function request(path: string, init: RequestInit = {}, timeoutMs = RUNTIME
   }
 
   const controller = new AbortController();
-  const timeoutId = globalThis.setTimeout(() => controller.abort(), timeoutMs);
+  let timeoutId: ReturnType<typeof globalThis.setTimeout>;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = globalThis.setTimeout(() => {
+      controller.abort();
+      reject(new DOMException('Request timed out', 'AbortError'));
+    }, timeoutMs);
+  });
 
   try {
-    const response = await fetch(`${AUTH_BASE_URL}${path}`, {
-      ...init,
-      headers,
-      credentials: 'include',
-      signal: controller.signal,
-    });
+    const response = await Promise.race([
+      fetch(`${AUTH_BASE_URL}${path}`, {
+        ...init,
+        headers,
+        credentials: 'include',
+        signal: controller.signal,
+      }),
+      timeoutPromise,
+    ]);
 
     const json = (await response.json().catch(() => null)) as AuthApiResponse | null;
     console.info('[auth_api_debug]', {
@@ -117,7 +204,7 @@ async function request(path: string, init: RequestInit = {}, timeoutMs = RUNTIME
     }
     return normalizeAuthPayload({ success: false, error: { code: 'NETWORK_ERROR', message: 'Service d’authentification indisponible.' } }, 503);
   } finally {
-    globalThis.clearTimeout(timeoutId);
+    globalThis.clearTimeout(timeoutId!);
   }
 }
 
@@ -143,15 +230,11 @@ async function buildCsrfHeaders(): Promise<AuthResult | Headers> {
 }
 
 export async function loginWithPassword(email: string, password: string): Promise<AuthResult> {
-  const headers = await buildCsrfHeaders();
-  if ('success' in headers) return headers;
-  return request('/login', { method: 'POST', headers, body: JSON.stringify({ email, password }) });
+  return request('/login', { method: 'POST', body: JSON.stringify({ email, password }) });
 }
 
 export async function registerWithPassword(email: string, password: string, name: string): Promise<AuthResult> {
-  const headers = await buildCsrfHeaders();
-  if ('success' in headers) return headers;
-  return request('/register', { method: 'POST', headers, body: JSON.stringify({ email, password, name }) });
+  return request('/register', { method: 'POST', body: JSON.stringify({ email, password, name }) });
 }
 
 export async function requestPasswordReset(email: string): Promise<AuthResult> {
