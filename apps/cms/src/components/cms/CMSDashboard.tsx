@@ -376,8 +376,9 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
   const [projectForm, setProjectForm] = useState<ProjectFormState>(EMPTY_PROJECT_FORM);
   const [projectFormErrors, setProjectFormErrors] = useState<Partial<Record<keyof ProjectFormState, string>>>({});
   const [services, setServices] = useState<Service[]>([]);
+  const emptyTeamForm = (): Partial<TeamMember> => ({ name: '', role: '', bio: '', photo: '', status: 'published', order: 0, socialLinks: [] });
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-  const [teamForm, setTeamForm] = useState<Partial<TeamMember>>({ name: '', role: '', bio: '', photo: '', status: 'published', order: 0, socialLinks: [] });
+  const [teamForm, setTeamForm] = useState<Partial<TeamMember>>(emptyTeamForm);
   const [teamEditingId, setTeamEditingId] = useState<string | null>(null);
   const [teamLoading, setTeamLoading] = useState(false);
   const [teamError, setTeamError] = useState('');
@@ -1799,6 +1800,21 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     }
   };
 
+  const resetTeamForm = () => {
+    setTeamForm(emptyTeamForm());
+    setTeamEditingId(null);
+  };
+
+  const editTeamMember = (member: TeamMember) => {
+    setTeamEditingId(member.id);
+    setTeamForm({
+      ...member,
+      id: member.id,
+      socialLinksText: (member.socialLinks || []).map((link) => `${link.platform} | ${link.label} | ${link.url}`).join('\n'),
+    } as Partial<TeamMember> & { socialLinksText: string });
+    setTeamError('');
+  };
+
   const saveTeamForm = async () => {
     if (teamLoading) return;
     if (!canEditContent) {
@@ -1817,9 +1833,16 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
         const [platform = '', label = '', url = ''] = line.split('|').map((part) => part.trim());
         return { platform, label: label || platform, url };
       });
-    const payload = { ...teamForm, socialLinks };
-    console.debug('[team-submit-fired]', payload);
-    console.debug('[cms-team-save]', { payload });
+    const editingId = teamEditingId || teamForm.id || '';
+    const isEditing = Boolean(editingId);
+    const { socialLinksText: _socialLinksText, ...formFields } = teamForm as Partial<TeamMember> & { socialLinksText?: string };
+    const payload: Partial<TeamMember> = {
+      ...formFields,
+      ...(isEditing ? { id: editingId } : {}),
+      socialLinks,
+    };
+    console.debug('[team-submit-fired]', { mode: isEditing ? 'edit' : 'create', id: payload.id, payload });
+    console.debug('[cms-team-save]', { mode: isEditing ? 'edit' : 'create', id: payload.id, payload });
     setTeamLoading(true);
     setTeamError('');
     try {
@@ -1837,8 +1860,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       if (!refreshedTeam.some((member) => member.id === savedMember.id)) {
         throw new Error("Le membre enregistré n’apparaît pas encore dans la liste CMS rafraîchie.");
       }
-      setTeamForm({ name: '', role: '', bio: '', photo: '', status: 'published', order: 0, socialLinks: [] });
-      setTeamEditingId(null);
+      resetTeamForm();
       showSuccess("Membre de l'équipe enregistré.");
     } catch (error) {
       setTeamError(getErrorMessage(error));
@@ -2750,13 +2772,13 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
               <label className="flex items-center gap-2 text-sm text-[#52666d]"><input type="checkbox" checked={Boolean(teamForm.featured)} onChange={(e) => setTeamForm({ ...teamForm, featured: e.target.checked })} /> Mis en avant</label>
               <textarea className="rounded-xl border border-[#dce7ec] px-4 py-3 md:col-span-2" rows={4} placeholder="Bio courte" value={teamForm.bio || ''} onChange={(e) => setTeamForm({ ...teamForm, bio: e.target.value })} />
               <textarea className="rounded-xl border border-[#dce7ec] px-4 py-3 md:col-span-2" rows={3} placeholder="Liens sociaux: platform | Label | https://... (un par ligne)" value={(teamForm as any).socialLinksText || ''} onChange={(e) => setTeamForm({ ...(teamForm as any), socialLinksText: e.target.value })} />
-              <div className="mt-1 flex gap-2 md:col-span-2"><AdminButton type="submit" intent="primary" disabled={teamLoading || !canEditContent}><Save size={15} /> {teamLoading ? 'Enregistrement…' : 'Enregistrer'}</AdminButton><AdminButton type="button" disabled={teamLoading} onClick={() => void loadTeamFromBackend()}><RotateCcw size={15} /> Rafraîchir</AdminButton></div>
+              <div className="mt-1 flex gap-2 md:col-span-2"><AdminButton type="submit" intent="primary" disabled={teamLoading || !canEditContent}><Save size={15} /> {teamLoading ? 'Enregistrement…' : 'Enregistrer'}</AdminButton><AdminButton type="button" disabled={teamLoading} onClick={() => void loadTeamFromBackend()}><RotateCcw size={15} /> Rafraîchir</AdminButton>{teamEditingId ? <AdminButton type="button" disabled={teamLoading} onClick={resetTeamForm}>Annuler</AdminButton> : null}</div>
             </form>
           </AdminPanel>
           <AdminPanel title={`Membres (${teamMembers.length})`}>
             {teamLoading ? <AdminLoadingState label="Chargement de l'équipe..." /> : null}
             {!teamLoading && teamMembers.length === 0 ? <AdminEmptyState label="Aucun membre créé." /> : null}
-            <div className="space-y-3">{teamMembers.map((member) => { const photoPreview = member.photo ? resolveCmsPreviewReference(member.photo, member.name || 'Photo équipe', member.name).src : ''; return (<div key={member.id} className="rounded-xl border border-[#e4edf1] bg-white p-4 md:flex md:items-center md:justify-between"><div className="flex items-center gap-4"><div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#eef8fb] text-[#00b3e8]">{photoPreview ? <img src={photoPreview} alt={`Photo de ${member.name}`} className="h-full w-full object-cover" onError={(event) => { event.currentTarget.style.display = 'none'; }} /> : <Users size={24} />}</div><div><p className="font-semibold text-[#273a41]">{member.name}</p><p className="text-sm text-[#6f7f85]">{member.role} • {member.status}</p><p className="mt-1 text-[11px] text-[#8a9aa1]"><code>{member.photo || 'Aucune photo'}</code></p></div></div><div className="mt-3 flex gap-2 md:mt-0"><AdminButton size="sm" onClick={() => { setTeamEditingId(member.id); setTeamForm({ ...member, socialLinksText: (member.socialLinks || []).map((l) => `${l.platform} | ${l.label} | ${l.url}`).join('\n') } as any); }}><Pencil size={14} /> Modifier</AdminButton><AdminButton size="sm" intent="danger" disabled={!canDeleteContent} onClick={async () => { await deleteBackendTeamMember(member.id); const refreshedTeam = await loadTeamFromBackend(); if (!refreshedTeam.some((entry) => entry.id === member.id)) showSuccess("Membre de l'équipe supprimé."); }}><Trash2 size={14} /> Supprimer</AdminButton></div></div>); })}</div>
+            <div className="space-y-3">{teamMembers.map((member) => { const photoPreview = member.photo ? resolveCmsPreviewReference(member.photo, member.name || 'Photo équipe', member.name).src : ''; return (<div key={member.id} className="rounded-xl border border-[#e4edf1] bg-white p-4 md:flex md:items-center md:justify-between"><div className="flex items-center gap-4"><div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#eef8fb] text-[#00b3e8]">{photoPreview ? <img src={photoPreview} alt={`Photo de ${member.name}`} className="h-full w-full object-cover" onError={(event) => { event.currentTarget.style.display = 'none'; }} /> : <Users size={24} />}</div><div><p className="font-semibold text-[#273a41]">{member.name}</p><p className="text-sm text-[#6f7f85]">{member.role} • {member.status}</p><p className="mt-1 text-[11px] text-[#8a9aa1]"><code>{member.photo || 'Aucune photo'}</code></p></div></div><div className="mt-3 flex gap-2 md:mt-0"><AdminButton size="sm" onClick={() => editTeamMember(member)}><Pencil size={14} /> Modifier</AdminButton><AdminButton size="sm" intent="danger" disabled={!canDeleteContent} onClick={async () => { await deleteBackendTeamMember(member.id); const refreshedTeam = await loadTeamFromBackend(); if (!refreshedTeam.some((entry) => entry.id === member.id)) showSuccess("Membre de l'équipe supprimé."); }}><Trash2 size={14} /> Supprimer</AdminButton></div></div>); })}</div>
           </AdminPanel>
         </div>
       );
