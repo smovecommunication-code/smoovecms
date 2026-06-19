@@ -39,11 +39,13 @@ export interface MediaUploadPayload {
 }
 
 export interface SocialLink {
+  id: string;
   platform: string;
   label: string;
   url: string;
   enabled: boolean;
   icon: string;
+  order: number;
 }
 
 export interface CmsSettings {
@@ -704,17 +706,38 @@ function normalizeLogoSize(value: Partial<CmsSettings['branding']['logoSize']> |
   return { desktop: clamp(value?.desktop, DEFAULT_LOGO_SIZE.desktop), tablet: clamp(value?.tablet, DEFAULT_LOGO_SIZE.tablet), mobile: clamp(value?.mobile, DEFAULT_LOGO_SIZE.mobile) };
 }
 
+const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/i;
+const HTTP_URL_PATTERN = /^https?:\/\/[^\s]+$/i;
+const MAILTO_PATTERN = /^mailto:[^@\s]+@[^@\s]+\.[^@\s]+$/i;
+
+export function normalizeSocialUrl(value: string, platform = ''): string {
+  const normalized = `${value || ''}`.trim();
+  if (!normalized) return '';
+  if (platform === 'email' && EMAIL_PATTERN.test(normalized)) return `mailto:${normalized}`;
+  return normalized;
+}
+
+export function isValidSocialLinkUrl(value: string, platform = ''): boolean {
+  const url = normalizeSocialUrl(value, platform);
+  if (platform === 'email') return MAILTO_PATTERN.test(url) || EMAIL_PATTERN.test(value.trim());
+  return MAILTO_PATTERN.test(url) || HTTP_URL_PATTERN.test(url);
+}
+
 function normalizeSocialLinks(values: SocialLink[] | undefined): SocialLink[] {
   if (!Array.isArray(values)) return [];
-  return values.flatMap((entry) => {
+  return values.flatMap((entry, index) => {
     if (!entry || typeof entry !== 'object') return [];
     const platform = `${entry.platform || ''}`.trim().toLowerCase();
     const label = `${entry.label || ''}`.trim();
-    const url = `${entry.url || ''}`.trim();
-    if (!platform || !label || !url) return [];
+    const url = normalizeSocialUrl(`${entry.url || ''}`, platform);
+    if (!platform || !label || !url || !isValidSocialLinkUrl(url, platform)) return [];
     const icon = `${entry.icon || ''}`.trim();
-    return [{ platform, label, url, enabled: entry.enabled !== false, icon }];
-  });
+    const rawOrder = Number((entry as Partial<SocialLink>).order);
+    const order = Number.isFinite(rawOrder) ? Math.round(rawOrder) : index;
+    const rawId = `${(entry as Partial<SocialLink>).id || ''}`.trim();
+    const id = rawId || `social_${platform}_${index}`;
+    return [{ id, platform, label, url, enabled: entry.enabled !== false, icon, order }];
+  }).sort((a, b) => a.order - b.order);
 }
 
 function dedupeList(values: string[] | undefined, fallback: string[]): string[] {
