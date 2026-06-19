@@ -376,7 +376,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
   const [projectForm, setProjectForm] = useState<ProjectFormState>(EMPTY_PROJECT_FORM);
   const [projectFormErrors, setProjectFormErrors] = useState<Partial<Record<keyof ProjectFormState, string>>>({});
   const [services, setServices] = useState<Service[]>([]);
-  const emptyTeamForm = (): Partial<TeamMember> => ({ name: '', role: '', bio: '', photo: '', status: 'published', order: 0, socialLinks: [] });
+  const emptyTeamForm = (): Partial<TeamMember> => ({ name: '', role: '', bio: '', photo: '', email: '', phone: '', contact: '', whatsapp: '', status: 'published', order: 0, socialLinks: [] });
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [teamForm, setTeamForm] = useState<Partial<TeamMember>>(emptyTeamForm);
   const [teamEditingId, setTeamEditingId] = useState<string | null>(null);
@@ -1806,10 +1806,16 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
   };
 
   const editTeamMember = (member: TeamMember) => {
+    const email = member.email || member.emailAddress || '';
+    const phone = member.phone || member.contact || member.contactPhone || member.telephone || '';
     setTeamEditingId(member.id);
     setTeamForm({
       ...member,
       id: member.id,
+      email,
+      phone,
+      contact: member.contact || phone,
+      whatsapp: member.whatsapp || '',
       socialLinksText: (member.socialLinks || []).map((link) => `${link.platform} | ${link.label} | ${link.url}`).join('\n'),
     } as Partial<TeamMember> & { socialLinksText: string });
     setTeamError('');
@@ -1836,9 +1842,15 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     const editingId = teamEditingId || teamForm.id || '';
     const isEditing = Boolean(editingId);
     const { socialLinksText: _socialLinksText, ...formFields } = teamForm as Partial<TeamMember> & { socialLinksText?: string };
+    const normalizedEmail = formFields.email || formFields.emailAddress || '';
+    const normalizedPhone = formFields.phone || formFields.contact || formFields.contactPhone || formFields.telephone || '';
     const payload: Partial<TeamMember> = {
       ...formFields,
       ...(isEditing ? { id: editingId } : {}),
+      email: normalizedEmail,
+      phone: normalizedPhone,
+      contact: formFields.contact || normalizedPhone,
+      whatsapp: formFields.whatsapp || '',
       socialLinks,
     };
     console.debug('[team-submit-fired]', { mode: isEditing ? 'edit' : 'create', id: payload.id, payload });
@@ -2765,8 +2777,9 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
                   }}
                 />
               </div>
-              <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Email" value={teamForm.email || ''} onChange={(e) => setTeamForm({ ...teamForm, email: e.target.value })} />
-              <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Téléphone" value={teamForm.phone || ''} onChange={(e) => setTeamForm({ ...teamForm, phone: e.target.value })} />
+              <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Email" value={teamForm.email ?? teamForm.emailAddress ?? ''} onChange={(e) => setTeamForm({ ...teamForm, email: e.target.value })} />
+              <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="Téléphone" value={teamForm.phone ?? teamForm.contact ?? teamForm.contactPhone ?? teamForm.telephone ?? ''} onChange={(e) => setTeamForm({ ...teamForm, phone: e.target.value, contact: e.target.value })} />
+              <input className="rounded-xl border border-[#dce7ec] px-4 py-3" placeholder="WhatsApp" value={teamForm.whatsapp || ''} onChange={(e) => setTeamForm({ ...teamForm, whatsapp: e.target.value })} />
               <input className="rounded-xl border border-[#dce7ec] px-4 py-3" type="number" placeholder="Ordre" value={teamForm.order || 0} onChange={(e) => setTeamForm({ ...teamForm, order: Number(e.target.value) })} />
               <select className="rounded-xl border border-[#dce7ec] px-4 py-3" value={teamForm.status || 'published'} onChange={(e) => setTeamForm({ ...teamForm, status: e.target.value as TeamMember['status'] })}><option value="draft">Brouillon</option><option value="published">Publié</option><option value="archived">Archivé</option></select>
               <label className="flex items-center gap-2 text-sm text-[#52666d]"><input type="checkbox" checked={Boolean(teamForm.featured)} onChange={(e) => setTeamForm({ ...teamForm, featured: e.target.checked })} /> Mis en avant</label>

@@ -158,7 +158,12 @@ export interface TeamMember {
   bio: string;
   photo: string;
   email?: string;
+  emailAddress?: string;
   phone?: string;
+  contact?: string;
+  contactPhone?: string;
+  telephone?: string;
+  whatsapp?: string;
   socialLinks: TeamSocialLink[];
   order: number;
   status: 'draft' | 'published' | 'archived';
