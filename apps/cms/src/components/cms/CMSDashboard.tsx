@@ -88,7 +88,7 @@ import { resolveCmsPreviewReference } from './dashboard/mediaPreview';
 import { buildServicePayload, type ServiceFormPayloadState } from './dashboard/servicePayload';
 import { appendHeroBackgroundItemWithMedia, assignHeroBackgroundMedia } from './dashboard/pageContentHeroActions';
 import type { BlogContentBlock, BlogPost, MediaFile, Project, Service, TeamMember } from '../../domain/contentSchemas';
-import { fetchNewsletterSubscribers, sendNewsletterCampaign, updateNewsletterSubscriberStatus, type NewsletterSubscriber } from '../../utils/newsletterApi';
+import { fetchNewsletterCampaignHistory, fetchNewsletterSubscribers, sendNewsletterCampaign, updateNewsletterSubscriberStatus, type NewsletterCampaignHistoryItem, type NewsletterSubscriber } from '../../utils/newsletterApi';
 import { fetchContactLeads, type ContactLead } from '../../utils/contactLeadsApi';
 import { getPublicSiteUrl } from '../../utils/publicSiteUrl';
 import { getCloudinaryVariant } from '../../utils/cloudinaryVariant';
@@ -506,6 +506,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
   const [auditEvents, setAuditEvents] = useState<AuthAuditEvent[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
   const [newsletterSubscribers, setNewsletterSubscribers] = useState<NewsletterSubscriber[]>([]);
+  const [newsletterCampaignHistory, setNewsletterCampaignHistory] = useState<NewsletterCampaignHistoryItem[]>([]);
   const [newsletterSummary, setNewsletterSummary] = useState({ total: 0, active: 0, unsubscribed: 0 });
   const [newsletterLastRefreshedAt, setNewsletterLastRefreshedAt] = useState<string | null>(null);
   const [newsletterLoading, setNewsletterLoading] = useState(false);
@@ -2639,6 +2640,8 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       });
       setNewsletterSubscribers(result.items);
       setNewsletterSummary(result.summary);
+      const history = await fetchNewsletterCampaignHistory();
+      setNewsletterCampaignHistory(history.items);
       setNewsletterLastRefreshedAt(new Date().toISOString());
     } catch (error) {
       setNewsletterError(error instanceof Error ? error.message : 'Impossible de charger les abonnés newsletter.');
@@ -2677,8 +2680,9 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     setNewsletterSending(true);
     try {
       const result = await sendNewsletterCampaign(newsletterCampaign);
-      setNewsletterNotice(`Newsletter envoyée à ${result.recipientCount} abonné(s) via ${result.provider}.`);
+      setNewsletterNotice(`Newsletter acceptée: ${result.deliveredCount ?? result.recipientCount}/${result.recipientCount} email(s) via ${result.provider}.`);
       setNewsletterCampaign({ subject: '', previewText: '', html: '' });
+      await loadNewsletterSubscribers();
       showSuccess('Newsletter envoyée.');
     } catch (error) {
       setNewsletterError(error instanceof Error ? error.message : 'Envoi newsletter impossible.');
@@ -2961,6 +2965,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
           error={newsletterError}
           notice={newsletterNotice}
           subscribers={newsletterSubscribers}
+          campaignHistory={newsletterCampaignHistory}
           search={newsletterSearch}
           setSearch={setNewsletterSearch}
           statusFilter={newsletterStatusFilter}

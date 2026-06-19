@@ -1,5 +1,5 @@
 import { AdminButton, AdminEmptyState, AdminErrorState, AdminLoadingState, AdminPageHeader, AdminPanel } from '../adminPrimitives';
-import type { NewsletterSubscriber } from '../../../utils/newsletterApi';
+import type { NewsletterCampaignHistoryItem, NewsletterSubscriber } from '../../../utils/newsletterApi';
 
 interface NewsletterSectionProps {
   canManage: boolean;
@@ -7,6 +7,7 @@ interface NewsletterSectionProps {
   error: string;
   notice: string;
   subscribers: NewsletterSubscriber[];
+  campaignHistory: NewsletterCampaignHistoryItem[];
   search: string;
   setSearch: (value: string) => void;
   statusFilter: string;
@@ -37,6 +38,7 @@ export function NewsletterSection(props: NewsletterSectionProps) {
     error,
     notice,
     subscribers,
+    campaignHistory,
     search,
     setSearch,
     statusFilter,
@@ -131,10 +133,55 @@ export function NewsletterSection(props: NewsletterSectionProps) {
             className="w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2 text-[14px]"
           />
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[12px] text-[#6f7f85]">Envoi aux abonnés actifs uniquement. Configurez SENDGRID_API_KEY côté API pour l’envoi réel.</p>
+            <p className="text-[12px] text-[#6f7f85]">Envoi aux abonnés actifs uniquement. Configurez RESEND_API_KEY + EMAIL_FROM ou SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS + EMAIL_FROM côté API pour l’envoi réel.</p>
             <AdminButton type="button" disabled={!canManage || sending} onClick={() => { void sendCampaign(); }}>{sending ? 'Envoi...' : 'Envoyer'}</AdminButton>
           </div>
         </div>
+      </AdminPanel>
+
+
+      <AdminPanel title="Historique des newsletters envoyées">
+        {campaignHistory.length === 0 ? <AdminEmptyState label="Aucune campagne envoyée ou échouée enregistrée." /> : null}
+        {campaignHistory.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-[#e4edf1] text-left text-[14px]">
+              <thead>
+                <tr className="text-[#5f727a]">
+                  <th className="px-3 py-2 font-semibold">Date</th>
+                  <th className="px-3 py-2 font-semibold">Objet</th>
+                  <th className="px-3 py-2 font-semibold">Statut</th>
+                  <th className="px-3 py-2 font-semibold">Fournisseur</th>
+                  <th className="px-3 py-2 font-semibold">Livrés / Total</th>
+                  <th className="px-3 py-2 font-semibold">Diagnostic</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#eef3f5]">
+                {campaignHistory.map((entry) => (
+                  <tr key={entry.id}>
+                    <td className="px-3 py-3">{toDisplayDate(entry.sentAt)}</td>
+                    <td className="px-3 py-3 font-medium text-[#273a41]">{entry.subject}</td>
+                    <td className="px-3 py-3">{entry.status}</td>
+                    <td className="px-3 py-3">{entry.provider}</td>
+                    <td className="px-3 py-3">{entry.deliveredCount}/{entry.recipientCount}</td>
+                    <td className="px-3 py-3 text-[#5f727a]">
+                      {entry.message || entry.code || 'Acceptée par le fournisseur'}
+                      {entry.failedCount > 0 && entry.recipients?.length ? (
+                        <details className="mt-1">
+                          <summary className="cursor-pointer text-[#d97706]">Voir erreurs</summary>
+                          <ul className="mt-1 list-disc pl-4 text-[12px]">
+                            {entry.recipients.filter((recipient) => recipient.status === 'failed').slice(0, 10).map((recipient) => (
+                              <li key={recipient.email}>{recipient.email}: {recipient.errorMessage || recipient.errorCode || 'échec fournisseur'}</li>
+                            ))}
+                          </ul>
+                        </details>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
       </AdminPanel>
 
       <AdminPanel title="Abonnés newsletter">

@@ -4,6 +4,25 @@ interface ApiEnvelope<T> {
   success?: boolean;
   data?: T;
   error?: { code?: string; message?: string };
+  ok?: boolean;
+  code?: string;
+  message?: string;
+}
+
+export interface NewsletterCampaignHistoryItem {
+  id: string;
+  subject: string;
+  previewText?: string;
+  provider: string;
+  status: 'sent' | 'failed' | 'partial' | 'skipped';
+  code?: string;
+  message?: string;
+  sentBy?: string;
+  sentAt: string;
+  recipientCount: number;
+  deliveredCount: number;
+  failedCount: number;
+  recipients?: Array<{ email: string; status: string; errorCode?: string; errorMessage?: string }>;
 }
 
 export interface NewsletterSubscriber {
@@ -37,7 +56,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<ApiEnve
 
   const body = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
   if (!response.ok || !body?.success) {
-    throw new Error(body?.error?.message || `NEWSLETTER_API_${response.status}`);
+    throw new Error(body?.error?.message || body?.message || body?.code || `NEWSLETTER_API_${response.status}`);
   }
 
   return body;
@@ -83,8 +102,17 @@ export async function updateNewsletterSubscriberStatus(id: string, status: 'acti
 }
 
 
-export async function sendNewsletterCampaign(payload: { subject: string; previewText?: string; html?: string; text?: string }): Promise<{ provider: string; recipientCount: number; subject: string }> {
-  const body = await request<{ provider: string; recipientCount: number; subject: string }>('/admin/send', {
+export async function fetchNewsletterCampaignHistory(): Promise<{ items: NewsletterCampaignHistoryItem[]; pagination: { page: number; limit: number; total: number; pages: number } }> {
+  const body = await request<{ items: NewsletterCampaignHistoryItem[]; pagination: { page: number; limit: number; total: number; pages: number } }>('/admin/campaigns');
+
+  return {
+    items: body.data?.items ?? [],
+    pagination: body.data?.pagination ?? { page: 1, limit: 50, total: 0, pages: 1 },
+  };
+}
+
+export async function sendNewsletterCampaign(payload: { subject: string; previewText?: string; html?: string; text?: string }): Promise<{ provider: string; recipientCount: number; deliveredCount?: number; failedCount?: number; subject: string }> {
+  const body = await request<{ provider: string; recipientCount: number; deliveredCount?: number; failedCount?: number; subject: string }>('/admin/send', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
