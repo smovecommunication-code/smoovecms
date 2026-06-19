@@ -21,6 +21,10 @@ describe('NewsletterSection', () => {
         lastRefreshedAt={null}
         refresh={() => {}}
         updateStatus={async () => {}}
+        campaign={{ subject: '', previewText: '', html: '' }}
+        setCampaign={() => {}}
+        sending={false}
+        sendCampaign={async () => {}}
       />, 
     );
 
@@ -57,6 +61,10 @@ describe('NewsletterSection', () => {
         lastRefreshedAt="2026-01-02T00:00:00.000Z"
         refresh={() => {}}
         updateStatus={async () => {}}
+        campaign={{ subject: '', previewText: '', html: '' }}
+        setCampaign={() => {}}
+        sending={false}
+        sendCampaign={async () => {}}
       />, 
     );
 

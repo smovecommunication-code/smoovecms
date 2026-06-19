@@ -17,6 +17,10 @@ interface NewsletterSectionProps {
   lastRefreshedAt: string | null;
   refresh: () => void;
   updateStatus: (id: string, status: 'active' | 'unsubscribed') => Promise<void>;
+  campaign: { subject: string; previewText: string; html: string };
+  setCampaign: (value: { subject: string; previewText: string; html: string }) => void;
+  sending: boolean;
+  sendCampaign: () => Promise<void>;
 }
 
 function toDisplayDate(value?: string | null) {
@@ -43,6 +47,10 @@ export function NewsletterSection(props: NewsletterSectionProps) {
     lastRefreshedAt,
     refresh,
     updateStatus,
+    campaign,
+    setCampaign,
+    sending,
+    sendCampaign,
   } = props;
 
   const sourceOptions = Array.from(new Set(subscribers.map((entry) => entry.source).filter(Boolean))).sort();
@@ -98,6 +106,35 @@ export function NewsletterSection(props: NewsletterSectionProps) {
         <p className="mt-2 text-[12px] text-[#6f7f85]">
           Dernier rafraîchissement: {toDisplayDate(lastRefreshedAt)}
         </p>
+      </AdminPanel>
+
+
+      <AdminPanel title="Envoyer une newsletter">
+        <div className="space-y-3">
+          <input
+            value={campaign.subject}
+            onChange={(event) => setCampaign({ ...campaign, subject: event.target.value })}
+            placeholder="Objet de la campagne"
+            className="w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2 text-[14px]"
+          />
+          <input
+            value={campaign.previewText}
+            onChange={(event) => setCampaign({ ...campaign, previewText: event.target.value })}
+            placeholder="Texte d’aperçu optionnel"
+            className="w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2 text-[14px]"
+          />
+          <textarea
+            value={campaign.html}
+            onChange={(event) => setCampaign({ ...campaign, html: event.target.value })}
+            placeholder="Contenu HTML ou texte de la newsletter"
+            rows={7}
+            className="w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2 text-[14px]"
+          />
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[12px] text-[#6f7f85]">Envoi aux abonnés actifs uniquement. Configurez SENDGRID_API_KEY côté API pour l’envoi réel.</p>
+            <AdminButton type="button" disabled={!canManage || sending} onClick={() => { void sendCampaign(); }}>{sending ? 'Envoi...' : 'Envoyer'}</AdminButton>
+          </div>
+        </div>
       </AdminPanel>
 
       <AdminPanel title="Abonnés newsletter">

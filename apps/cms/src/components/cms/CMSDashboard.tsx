@@ -88,7 +88,7 @@ import { resolveCmsPreviewReference } from './dashboard/mediaPreview';
 import { buildServicePayload, type ServiceFormPayloadState } from './dashboard/servicePayload';
 import { appendHeroBackgroundItemWithMedia, assignHeroBackgroundMedia } from './dashboard/pageContentHeroActions';
 import type { BlogContentBlock, BlogPost, MediaFile, Project, Service, TeamMember } from '../../domain/contentSchemas';
-import { fetchNewsletterSubscribers, updateNewsletterSubscriberStatus, type NewsletterSubscriber } from '../../utils/newsletterApi';
+import { fetchNewsletterSubscribers, sendNewsletterCampaign, updateNewsletterSubscriberStatus, type NewsletterSubscriber } from '../../utils/newsletterApi';
 import { fetchContactLeads, type ContactLead } from '../../utils/contactLeadsApi';
 import { getPublicSiteUrl } from '../../utils/publicSiteUrl';
 import { getCloudinaryVariant } from '../../utils/cloudinaryVariant';
@@ -514,6 +514,8 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
   const [newsletterSearch, setNewsletterSearch] = useState('');
   const [newsletterStatusFilter, setNewsletterStatusFilter] = useState('all');
   const [newsletterSourceFilter, setNewsletterSourceFilter] = useState('all');
+  const [newsletterCampaign, setNewsletterCampaign] = useState({ subject: '', previewText: '', html: '' });
+  const [newsletterSending, setNewsletterSending] = useState(false);
   const [contactLeads, setContactLeads] = useState<ContactLead[]>([]);
   const [contactLeadsSummary, setContactLeadsSummary] = useState({ total: 0, received: 0, sent: 0, failed: 0, disabled: 0 });
   const [contactLeadsLastRefreshedAt, setContactLeadsLastRefreshedAt] = useState<string | null>(null);
@@ -2664,6 +2666,27 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     }
   };
 
+
+  const sendNewsletter = async () => {
+    setNewsletterNotice('');
+    setNewsletterError('');
+    if (!newsletterCampaign.subject.trim() || !newsletterCampaign.html.trim()) {
+      setNewsletterError('Objet et contenu de la newsletter obligatoires.');
+      return;
+    }
+    setNewsletterSending(true);
+    try {
+      const result = await sendNewsletterCampaign(newsletterCampaign);
+      setNewsletterNotice(`Newsletter envoyée à ${result.recipientCount} abonné(s) via ${result.provider}.`);
+      setNewsletterCampaign({ subject: '', previewText: '', html: '' });
+      showSuccess('Newsletter envoyée.');
+    } catch (error) {
+      setNewsletterError(error instanceof Error ? error.message : 'Envoi newsletter impossible.');
+    } finally {
+      setNewsletterSending(false);
+    }
+  };
+
   const patchNewsletterStatus = async (id: string, status: 'active' | 'unsubscribed') => {
     setNewsletterNotice('');
     setNewsletterError('');
@@ -2950,6 +2973,10 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
             void loadNewsletterSubscribers();
           }}
           updateStatus={patchNewsletterStatus}
+          campaign={newsletterCampaign}
+          setCampaign={setNewsletterCampaign}
+          sending={newsletterSending}
+          sendCampaign={sendNewsletter}
         />
       );
     }

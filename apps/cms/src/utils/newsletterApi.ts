@@ -9,6 +9,7 @@ interface ApiEnvelope<T> {
 export interface NewsletterSubscriber {
   id: string;
   email: string;
+  name?: string;
   status: 'active' | 'unsubscribed';
   source: string;
   subscribedAt: string;
@@ -79,4 +80,18 @@ export async function updateNewsletterSubscriberStatus(id: string, status: 'acti
   }
 
   return body.data.subscriber;
+}
+
+
+export async function sendNewsletterCampaign(payload: { subject: string; previewText?: string; html?: string; text?: string }): Promise<{ provider: string; recipientCount: number; subject: string }> {
+  const body = await request<{ provider: string; recipientCount: number; subject: string }>('/admin/send', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+
+  if (!body.data) {
+    throw new Error('Newsletter campaign send failed.');
+  }
+
+  return body.data;
 }
