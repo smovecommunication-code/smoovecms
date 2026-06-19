@@ -1,5 +1,5 @@
 import { AdminButton, AdminEmptyState, AdminErrorState, AdminLoadingState, AdminPageHeader, AdminPanel } from '../adminPrimitives';
-import type { NewsletterCampaignHistoryItem, NewsletterSubscriber } from '../../../utils/newsletterApi';
+import type { NewsletterCampaignHistoryItem, NewsletterEmailStatus, NewsletterSubscriber, NewsletterTestEmailResult } from '../../../utils/newsletterApi';
 
 interface NewsletterSectionProps {
   canManage: boolean;
@@ -8,6 +8,12 @@ interface NewsletterSectionProps {
   notice: string;
   subscribers: NewsletterSubscriber[];
   campaignHistory: NewsletterCampaignHistoryItem[];
+  emailStatus: NewsletterEmailStatus | null;
+  testEmail: string;
+  setTestEmail: (value: string) => void;
+  testingEmail: boolean;
+  testEmailResult: NewsletterTestEmailResult | null;
+  sendTestEmail: () => Promise<void>;
   search: string;
   setSearch: (value: string) => void;
   statusFilter: string;
@@ -39,6 +45,12 @@ export function NewsletterSection(props: NewsletterSectionProps) {
     notice,
     subscribers,
     campaignHistory,
+    emailStatus,
+    testEmail,
+    setTestEmail,
+    testingEmail,
+    testEmailResult,
+    sendTestEmail,
     search,
     setSearch,
     statusFilter,
@@ -111,6 +123,34 @@ export function NewsletterSection(props: NewsletterSectionProps) {
       </AdminPanel>
 
 
+
+      <AdminPanel title="Email Configuration Status">
+        <div className="space-y-3">
+          <div className="rounded-[10px] border border-[#e4edf1] bg-[#fcfeff] px-3 py-3 text-[14px]">
+            <p className="font-semibold text-[#273a41]">
+              {emailStatus?.resendConfigured ? '✅ Resend configured' : emailStatus?.smtpConfigured ? '✅ SMTP configured' : '❌ No email provider configured'}
+            </p>
+            <p className="mt-1 text-[12px] text-[#6f7f85]">Fournisseur actif: {emailStatus?.activeProvider || emailStatus?.mode || 'dev-fallback'}</p>
+          </div>
+          <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+            <input
+              value={testEmail}
+              onChange={(event) => setTestEmail(event.target.value)}
+              placeholder="Adresse destination du test"
+              className="rounded-[10px] border border-[#d8e4e8] px-3 py-2 text-[14px]"
+            />
+            <AdminButton type="button" disabled={!canManage || testingEmail} onClick={() => { void sendTestEmail(); }}>
+              {testingEmail ? 'Test...' : 'Envoyer un email de test'}
+            </AdminButton>
+          </div>
+          {testEmailResult ? (
+            <pre className="max-h-56 overflow-auto rounded-[10px] bg-[#10232b] p-3 text-[12px] text-[#d7f9ff]">
+              {JSON.stringify({ provider: testEmailResult.provider, status: testEmailResult.status, response: testEmailResult.providerResponse, error: testEmailResult.message || testEmailResult.code || null }, null, 2)}
+            </pre>
+          ) : null}
+        </div>
+      </AdminPanel>
+
       <AdminPanel title="Envoyer une newsletter">
         <div className="space-y-3">
           <input
@@ -162,7 +202,7 @@ export function NewsletterSection(props: NewsletterSectionProps) {
                     <td className="px-3 py-3 font-medium text-[#273a41]">{entry.subject}</td>
                     <td className="px-3 py-3">{entry.status}</td>
                     <td className="px-3 py-3">{entry.provider}</td>
-                    <td className="px-3 py-3">{entry.deliveredCount}/{entry.recipientCount}</td>
+                    <td className="px-3 py-3">{entry.sentCount ?? entry.deliveredCount}/{entry.recipientCount}</td>
                     <td className="px-3 py-3 text-[#5f727a]">
                       {entry.message || entry.code || 'Acceptée par le fournisseur'}
                       {entry.failedCount > 0 && entry.recipients?.length ? (

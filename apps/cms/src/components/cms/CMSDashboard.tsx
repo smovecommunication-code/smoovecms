@@ -88,7 +88,7 @@ import { resolveCmsPreviewReference } from './dashboard/mediaPreview';
 import { buildServicePayload, type ServiceFormPayloadState } from './dashboard/servicePayload';
 import { appendHeroBackgroundItemWithMedia, assignHeroBackgroundMedia } from './dashboard/pageContentHeroActions';
 import type { BlogContentBlock, BlogPost, MediaFile, Project, Service, TeamMember } from '../../domain/contentSchemas';
-import { fetchNewsletterCampaignHistory, fetchNewsletterSubscribers, sendNewsletterCampaign, updateNewsletterSubscriberStatus, type NewsletterCampaignHistoryItem, type NewsletterSubscriber } from '../../utils/newsletterApi';
+import { fetchNewsletterCampaignHistory, fetchNewsletterEmailStatus, fetchNewsletterSubscribers, sendNewsletterCampaign, sendNewsletterTestEmail, updateNewsletterSubscriberStatus, type NewsletterCampaignHistoryItem, type NewsletterEmailStatus, type NewsletterTestEmailResult, type NewsletterSubscriber } from '../../utils/newsletterApi';
 import { fetchContactLeads, type ContactLead } from '../../utils/contactLeadsApi';
 import { getPublicSiteUrl } from '../../utils/publicSiteUrl';
 import { getCloudinaryVariant } from '../../utils/cloudinaryVariant';
@@ -517,6 +517,10 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
   const [newsletterSourceFilter, setNewsletterSourceFilter] = useState('all');
   const [newsletterCampaign, setNewsletterCampaign] = useState({ subject: '', previewText: '', html: '' });
   const [newsletterSending, setNewsletterSending] = useState(false);
+  const [newsletterEmailStatus, setNewsletterEmailStatus] = useState<NewsletterEmailStatus | null>(null);
+  const [newsletterTestEmail, setNewsletterTestEmail] = useState('');
+  const [newsletterTestingEmail, setNewsletterTestingEmail] = useState(false);
+  const [newsletterTestEmailResult, setNewsletterTestEmailResult] = useState<NewsletterTestEmailResult | null>(null);
   const [contactLeads, setContactLeads] = useState<ContactLead[]>([]);
   const [contactLeadsSummary, setContactLeadsSummary] = useState({ total: 0, received: 0, sent: 0, failed: 0, disabled: 0 });
   const [contactLeadsLastRefreshedAt, setContactLeadsLastRefreshedAt] = useState<string | null>(null);
@@ -2640,8 +2644,9 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       });
       setNewsletterSubscribers(result.items);
       setNewsletterSummary(result.summary);
-      const history = await fetchNewsletterCampaignHistory();
+      const [history, emailStatus] = await Promise.all([fetchNewsletterCampaignHistory(), fetchNewsletterEmailStatus()]);
       setNewsletterCampaignHistory(history.items);
+      setNewsletterEmailStatus(emailStatus);
       setNewsletterLastRefreshedAt(new Date().toISOString());
     } catch (error) {
       setNewsletterError(error instanceof Error ? error.message : 'Impossible de charger les abonnés newsletter.');
@@ -2688,6 +2693,28 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       setNewsletterError(error instanceof Error ? error.message : 'Envoi newsletter impossible.');
     } finally {
       setNewsletterSending(false);
+    }
+  };
+
+
+  const sendNewsletterTest = async () => {
+    setNewsletterNotice('');
+    setNewsletterError('');
+    setNewsletterTestEmailResult(null);
+    if (!newsletterTestEmail.trim()) {
+      setNewsletterError('Email de destination obligatoire pour le test.');
+      return;
+    }
+    setNewsletterTestingEmail(true);
+    try {
+      const result = await sendNewsletterTestEmail(newsletterTestEmail.trim());
+      setNewsletterTestEmailResult(result);
+      setNewsletterNotice(`Email de test envoyé via ${result.provider}.`);
+      await loadNewsletterSubscribers();
+    } catch (error) {
+      setNewsletterError(error instanceof Error ? error.message : 'Email de test impossible.');
+    } finally {
+      setNewsletterTestingEmail(false);
     }
   };
 
@@ -2966,6 +2993,12 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
           notice={newsletterNotice}
           subscribers={newsletterSubscribers}
           campaignHistory={newsletterCampaignHistory}
+          emailStatus={newsletterEmailStatus}
+          testEmail={newsletterTestEmail}
+          setTestEmail={setNewsletterTestEmail}
+          testingEmail={newsletterTestingEmail}
+          testEmailResult={newsletterTestEmailResult}
+          sendTestEmail={sendNewsletterTest}
           search={newsletterSearch}
           setSearch={setNewsletterSearch}
           statusFilter={newsletterStatusFilter}

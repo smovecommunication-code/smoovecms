@@ -14,15 +14,41 @@ export interface NewsletterCampaignHistoryItem {
   subject: string;
   previewText?: string;
   provider: string;
-  status: 'sent' | 'failed' | 'partial' | 'skipped';
+  status: 'draft' | 'sending' | 'sent' | 'partial' | 'failed';
   code?: string;
   message?: string;
   sentBy?: string;
   sentAt: string;
   recipientCount: number;
   deliveredCount: number;
+  sentCount?: number;
   failedCount: number;
   recipients?: Array<{ email: string; status: string; errorCode?: string; errorMessage?: string }>;
+}
+
+
+export interface NewsletterEmailStatus {
+  deliveryReady: boolean;
+  mode: string;
+  activeProvider: string;
+  provider: string;
+  resendConfigured: boolean;
+  smtpConfigured: boolean;
+  hasFrom: boolean;
+  hasResendApiKey: boolean;
+  hasSmtpHost: boolean;
+  hasSmtpPort: boolean;
+  hasSmtpUser: boolean;
+  hasSmtpPass: boolean;
+}
+
+export interface NewsletterTestEmailResult {
+  ok?: boolean;
+  provider: string;
+  status: string;
+  providerResponse?: unknown;
+  code?: string;
+  message?: string;
 }
 
 export interface NewsletterSubscriber {
@@ -101,6 +127,31 @@ export async function updateNewsletterSubscriberStatus(id: string, status: 'acti
   return body.data.subscriber;
 }
 
+
+export async function fetchNewsletterEmailStatus(): Promise<NewsletterEmailStatus> {
+  const body = await request<NewsletterEmailStatus>('/admin/email-status');
+  if (!body.data) throw new Error('Email configuration status unavailable.');
+  return body.data;
+}
+
+export async function sendNewsletterTestEmail(to: string): Promise<NewsletterTestEmailResult> {
+  const response = await fetch(`${NEWSLETTER_BASE_URL}/admin/test-email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    cache: 'no-store',
+    body: JSON.stringify({ to }),
+  });
+  const body = (await response.json().catch(() => null)) as ApiEnvelope<NewsletterTestEmailResult> | NewsletterTestEmailResult | null;
+  if (!response.ok) {
+    const result = (body && 'provider' in body ? body : null) as NewsletterTestEmailResult | null;
+    if (result) return result;
+    throw new Error(body?.error?.message || body?.message || body?.code || `NEWSLETTER_TEST_EMAIL_${response.status}`);
+  }
+  const result = 'data' in (body ?? {}) ? (body as ApiEnvelope<NewsletterTestEmailResult>).data : (body as NewsletterTestEmailResult | null);
+  if (!result) throw new Error('Newsletter test email failed.');
+  return result;
+}
 
 export async function fetchNewsletterCampaignHistory(): Promise<{ items: NewsletterCampaignHistoryItem[]; pagination: { page: number; limit: number; total: number; pages: number } }> {
   const body = await request<{ items: NewsletterCampaignHistoryItem[]; pagination: { page: number; limit: number; total: number; pages: number } }>('/admin/campaigns');
