@@ -26,6 +26,31 @@ export interface HeroBackgroundItem {
   enable3DEffects: boolean;
 }
 
+export interface FooterQuickLink {
+  label: string;
+  url: string;
+}
+
+export interface FooterContentSettings {
+  title: string;
+  description: string;
+  copyright: string;
+  address: string;
+  phone: string;
+  email: string;
+  quickLinks: FooterQuickLink[];
+  cta: {
+    title: string;
+    text: string;
+    buttonLabel: string;
+    buttonUrl: string;
+  };
+  newsletter: {
+    title: string;
+    text: string;
+  };
+}
+
 export interface HomePageContentSettings {
   heroBadge: string;
   heroTitleLine1: string;
@@ -65,6 +90,7 @@ export interface HomePageContentSettings {
   contactTitle: string;
   contactSubtitle: string;
   contactSubmitLabel: string;
+  footer: FooterContentSettings;
 }
 
 export const defaultHomePageContent: HomePageContentSettings = {
@@ -110,4 +136,29 @@ export const defaultHomePageContent: HomePageContentSettings = {
   contactSubtitle:
     'Vous avez un projet en tête ? Contactez-nous et discutons de la manière dont nous pouvons vous aider à le réaliser.',
   contactSubmitLabel: 'Envoyer le message',
+  footer: {
+    title: 'SMOVE',
+    description: 'Agence de communication digitale spécialisée dans la création de contenu, le développement web et la stratégie digitale.',
+    copyright: '© {year} SMOVE Communication. Tous droits réservés.',
+    address: "Abidjan, Côte d'Ivoire",
+    phone: '+225 XX XX XX XX XX',
+    email: 'contact@smove-communication.com',
+    quickLinks: [
+      { label: 'Accueil', url: '#/' },
+      { label: 'À Propos', url: '#about' },
+      { label: 'Portfolio', url: '#portfolio' },
+      { label: 'Blog', url: '#/blog' },
+      { label: 'Contact', url: '#/contact' },
+    ],
+    cta: {
+      title: 'Prêt à lancer votre projet ?',
+      text: 'Parlons de vos besoins et construisons une communication qui convertit.',
+      buttonLabel: 'Nous contacter',
+      buttonUrl: '#/contact',
+    },
+    newsletter: {
+      title: 'Abonnez-vous à la Newsletter',
+      text: 'Ne manquez rien de nos offres et informations',
+    },
+  },
 };

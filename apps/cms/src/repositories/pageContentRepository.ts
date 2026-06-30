@@ -90,6 +90,7 @@ const isHomePageContentSettings = (value: unknown): value is HomePageContentSett
   ];
 
   return keys.every((key) => typeof value[key] === 'string') &&
+    (value.footer === undefined || isRecord(value.footer)) &&
     (value.heroBackgroundItems === undefined || Array.isArray(value.heroBackgroundItems)) &&
     (value.heroBackgroundRotationEnabled === undefined || typeof value.heroBackgroundRotationEnabled === 'boolean') &&
     (value.heroBackgroundAutoplay === undefined || typeof value.heroBackgroundAutoplay === 'boolean') &&
@@ -98,6 +99,46 @@ const isHomePageContentSettings = (value: unknown): value is HomePageContentSett
     (value.heroBackgroundOverlayOpacity === undefined || (typeof value.heroBackgroundOverlayOpacity === 'number' && Number.isFinite(value.heroBackgroundOverlayOpacity))) &&
     (value.heroBackgroundEnable3DEffects === undefined || typeof value.heroBackgroundEnable3DEffects === 'boolean') &&
     (value.heroBackgroundEnableParallax === undefined || typeof value.heroBackgroundEnableParallax === 'boolean');
+};
+
+const normalizeFooterQuickLinks = (value: unknown): HomePageContentSettings['footer']['quickLinks'] => {
+  const links = Array.isArray(value) ? value : defaultHomePageContent.footer.quickLinks;
+  const normalized = links
+    .map((entry) => {
+      if (!isRecord(entry)) return null;
+      const label = typeof entry.label === 'string' ? entry.label.trim() : '';
+      const url = typeof entry.url === 'string' ? entry.url.trim() : '';
+      return label && url ? { label, url } : null;
+    })
+    .filter((entry): entry is HomePageContentSettings['footer']['quickLinks'][number] => Boolean(entry));
+  return normalized.length ? normalized : defaultHomePageContent.footer.quickLinks;
+};
+
+const normalizeFooterContent = (value: unknown): HomePageContentSettings['footer'] => {
+  const footer = isRecord(value) ? value : {};
+  const cta = isRecord(footer.cta) ? footer.cta : {};
+  const newsletter = isRecord(footer.newsletter) ? footer.newsletter : {};
+  const stringValue = (source: unknown, fallback: string) => (typeof source === 'string' ? source.trim() || fallback : fallback);
+
+  return {
+    title: stringValue(footer.title, defaultHomePageContent.footer.title),
+    description: stringValue(footer.description, defaultHomePageContent.footer.description),
+    copyright: stringValue(footer.copyright, defaultHomePageContent.footer.copyright),
+    address: stringValue(footer.address, defaultHomePageContent.footer.address),
+    phone: stringValue(footer.phone, defaultHomePageContent.footer.phone),
+    email: stringValue(footer.email, defaultHomePageContent.footer.email),
+    quickLinks: normalizeFooterQuickLinks(footer.quickLinks),
+    cta: {
+      title: stringValue(cta.title, defaultHomePageContent.footer.cta.title),
+      text: stringValue(cta.text, defaultHomePageContent.footer.cta.text),
+      buttonLabel: stringValue(cta.buttonLabel, defaultHomePageContent.footer.cta.buttonLabel),
+      buttonUrl: stringValue(cta.buttonUrl, defaultHomePageContent.footer.cta.buttonUrl),
+    },
+    newsletter: {
+      title: stringValue(newsletter.title, defaultHomePageContent.footer.newsletter.title),
+      text: stringValue(newsletter.text, defaultHomePageContent.footer.newsletter.text),
+    },
+  };
 };
 
 const isPageContentPayload = (value: unknown): value is PageContentPayload =>
@@ -150,6 +191,7 @@ const normalizeHomeContent = (value: HomePageContentSettings): HomePageContentSe
   contactTitle: value.contactTitle.trim() || defaultHomePageContent.contactTitle,
   contactSubtitle: value.contactSubtitle.trim() || defaultHomePageContent.contactSubtitle,
   contactSubmitLabel: value.contactSubmitLabel.trim() || defaultHomePageContent.contactSubmitLabel,
+  footer: normalizeFooterContent(value.footer),
 });
 
 export interface PageContentRepository {

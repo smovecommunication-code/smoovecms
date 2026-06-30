@@ -6,6 +6,12 @@ export interface ServiceFormPayloadState {
   slug: string;
   description: string;
   shortDescription: string;
+  summary: string;
+  detailImage: string;
+  detailCtaTitle: string;
+  detailCtaText: string;
+  detailCtaButtonLabel: string;
+  detailCtaButtonUrl: string;
   icon: string;
   color: string;
   features: string;
@@ -29,6 +35,13 @@ export const buildServicePayload = (form: ServiceFormPayloadState, mode: 'create
   const routeSlug = form.routeSlug.trim() || slug;
   const featureList = form.features.split('\n').map((entry) => entry.trim()).filter(Boolean);
   const processSteps = form.processSteps.split('\n').map((entry) => entry.trim()).filter(Boolean);
+  const detailCta = {
+    title: form.detailCtaTitle.trim(),
+    text: form.detailCtaText.trim(),
+    buttonLabel: form.detailCtaButtonLabel.trim(),
+    buttonUrl: form.detailCtaButtonUrl.trim(),
+  };
+  const hasDetailCta = Object.values(detailCta).some(Boolean);
   const payloadBase = {
     id: form.id || `service-${Date.now()}`,
     title: form.title.trim(),
@@ -46,6 +59,9 @@ export const buildServicePayload = (form: ServiceFormPayloadState, mode: 'create
       color: form.color.trim(),
       features: featureList,
       shortDescription: form.shortDescription.trim() || undefined,
+      summary: form.summary.trim() || undefined,
+      detailImage: form.detailImage.trim() || undefined,
+      detailCta: hasDetailCta ? detailCta : undefined,
       overviewDescription: form.overviewDescription.trim() || undefined,
       ctaTitle: form.ctaTitle.trim() || undefined,
       ctaDescription: form.ctaDescription.trim() || undefined,
@@ -62,6 +78,9 @@ export const buildServicePayload = (form: ServiceFormPayloadState, mode: 'create
     ...(form.icon.trim() ? { icon: form.icon.trim() } : {}),
     ...(form.color.trim() ? { color: form.color.trim() } : {}),
     ...(featureList.length > 0 ? { features: featureList } : {}),
+    summary: form.summary.trim() || undefined,
+    detailImage: form.detailImage.trim() || undefined,
+    detailCta: hasDetailCta ? detailCta : undefined,
     ...(form.shortDescription.trim() ? { shortDescription: form.shortDescription.trim() } : {}),
     ...(form.overviewDescription.trim() ? { overviewDescription: form.overviewDescription.trim() } : {}),
     ...(form.ctaTitle.trim() ? { ctaTitle: form.ctaTitle.trim() } : {}),

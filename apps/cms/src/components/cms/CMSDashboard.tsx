@@ -210,6 +210,12 @@ const EMPTY_SERVICE_FORM: ServiceFormState = {
   slug: '',
   description: '',
   shortDescription: '',
+  summary: '',
+  detailImage: '',
+  detailCtaTitle: '',
+  detailCtaText: '',
+  detailCtaButtonLabel: '',
+  detailCtaButtonUrl: '',
   icon: 'palette',
   color: 'from-[#00b3e8] to-[#00c0e8]',
   features: '',
@@ -1473,6 +1479,12 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       slug: service.slug,
       description: service.description,
       shortDescription: service.shortDescription || '',
+      summary: service.summary || '',
+      detailImage: service.detailImage || service.representativeImage || service.visualMedia || '',
+      detailCtaTitle: service.detailCta?.title || '',
+      detailCtaText: service.detailCta?.text || '',
+      detailCtaButtonLabel: service.detailCta?.buttonLabel || '',
+      detailCtaButtonUrl: service.detailCta?.buttonUrl || '',
       icon: service.icon,
       color: service.color,
       features: service.features.join('\n'),
@@ -1520,6 +1532,12 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     }
     if (form.routeSlug.trim() && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(form.routeSlug.trim())) {
       errors.routeSlug = 'Le routeSlug doit contenir uniquement des lettres minuscules, chiffres et tirets.';
+    }
+    if (form.detailImage.trim() && !isValidMediaField(form.detailImage)) {
+      errors.detailImage = 'Utilisez une référence media:<id> ou une URL image valide.';
+    }
+    if (form.detailCtaButtonUrl.trim() && !isValidPublicHref(form.detailCtaButtonUrl)) {
+      errors.detailCtaButtonUrl = 'Le bouton CTA détail doit être une ancre, une route ou une URL http(s).';
     }
     if (form.ctaPrimaryHref.trim() && !isValidPublicHref(form.ctaPrimaryHref)) {
       errors.ctaPrimaryHref = 'Le CTA doit être une ancre (#contact), une route (/contact) ou une URL https://.';
@@ -2327,7 +2345,10 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
           <div className="rounded-[12px] border border-[#eef3f5] p-4 space-y-3">
             <h4 className="text-[16px] font-semibold text-[#273a41]">Contenu principal</h4>
             <label className="block"><span className="text-[14px] text-[#6f7f85]">Description courte (carte)</span><input value={serviceForm.shortDescription} onChange={(event) => setServiceForm((prev) => ({ ...prev, shortDescription: event.target.value }))} className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" /></label>
-            <label className="block"><span className="text-[14px] text-[#6f7f85]">Description détaillée</span><textarea value={serviceForm.description} onChange={(event) => setServiceForm((prev) => ({ ...prev, description: event.target.value }))} className="mt-1 w-full min-h-[90px] rounded-[10px] border border-[#d8e4e8] px-3 py-2" />{serviceFormErrors.description ? <p className="text-[12px] text-red-600 mt-1">{serviceFormErrors.description}</p> : null}</label>
+            <label className="block"><span className="text-[14px] text-[#6f7f85]">Résumé (optionnel)</span><textarea value={serviceForm.summary} onChange={(event) => setServiceForm((prev) => ({ ...prev, summary: event.target.value }))} className="mt-1 w-full min-h-[70px] rounded-[10px] border border-[#d8e4e8] px-3 py-2" /></label>
+            <CMSMediaPicker fieldName="detailImage" label="Image principale / détail" value={serviceForm.detailImage} mediaFiles={mediaFiles} disabled={isUploadingMedia} onUpload={uploadMediaForField} onChange={(reference) => setServiceForm((prev) => ({ ...prev, detailImage: reference }))} />
+            {serviceFormErrors.detailImage ? <p className="text-[12px] text-red-600 mt-1">{serviceFormErrors.detailImage}</p> : null}
+            <label className="block"><span className="text-[14px] text-[#6f7f85]">Description détaillée / complète</span><textarea value={serviceForm.description} onChange={(event) => setServiceForm((prev) => ({ ...prev, description: event.target.value }))} className="mt-1 w-full min-h-[90px] rounded-[10px] border border-[#d8e4e8] px-3 py-2" />{serviceFormErrors.description ? <p className="text-[12px] text-red-600 mt-1">{serviceFormErrors.description}</p> : null}</label>
             <label className="block"><span className="text-[14px] text-[#6f7f85]">Résumé d’introduction</span><textarea value={serviceForm.overviewDescription} onChange={(event) => setServiceForm((prev) => ({ ...prev, overviewDescription: event.target.value }))} className="mt-1 w-full min-h-[90px] rounded-[10px] border border-[#d8e4e8] px-3 py-2" /></label>
             <label className="block"><span className="text-[14px] text-[#6f7f85]">Fonctionnalités (une ligne par item)</span><textarea value={serviceForm.features} onChange={(event) => setServiceForm((prev) => ({ ...prev, features: event.target.value }))} className="mt-1 w-full min-h-[90px] rounded-[10px] border border-[#d8e4e8] px-3 py-2" />{serviceFormErrors.features ? <p className="text-[12px] text-red-600 mt-1">{serviceFormErrors.features}</p> : null}</label>
           </div>
@@ -2337,6 +2358,10 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
             <label className="block"><span className="text-[14px] text-[#6f7f85]">Titre CTA</span><input value={serviceForm.ctaTitle} onChange={(event) => setServiceForm((prev) => ({ ...prev, ctaTitle: event.target.value }))} className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" /></label>
             <label className="block"><span className="text-[14px] text-[#6f7f85]">Description CTA</span><textarea value={serviceForm.ctaDescription} onChange={(event) => setServiceForm((prev) => ({ ...prev, ctaDescription: event.target.value }))} className="mt-1 w-full min-h-[80px] rounded-[10px] border border-[#d8e4e8] px-3 py-2" /></label>
             <div className="grid md:grid-cols-2 gap-3">
+              <label className="block"><span className="text-[14px] text-[#6f7f85]">Titre CTA détail</span><input value={serviceForm.detailCtaTitle} onChange={(event) => setServiceForm((prev) => ({ ...prev, detailCtaTitle: event.target.value }))} className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" /></label>
+              <label className="block"><span className="text-[14px] text-[#6f7f85]">Texte CTA détail</span><input value={serviceForm.detailCtaText} onChange={(event) => setServiceForm((prev) => ({ ...prev, detailCtaText: event.target.value }))} className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" /></label>
+              <label className="block"><span className="text-[14px] text-[#6f7f85]">Libellé bouton détail</span><input value={serviceForm.detailCtaButtonLabel} onChange={(event) => setServiceForm((prev) => ({ ...prev, detailCtaButtonLabel: event.target.value }))} className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" /></label>
+              <label className="block"><span className="text-[14px] text-[#6f7f85]">URL bouton détail</span><input value={serviceForm.detailCtaButtonUrl} onChange={(event) => setServiceForm((prev) => ({ ...prev, detailCtaButtonUrl: event.target.value }))} className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" placeholder="#contact, /contact ou https://..." />{serviceFormErrors.detailCtaButtonUrl ? <p className="text-[12px] text-red-600 mt-1">{serviceFormErrors.detailCtaButtonUrl}</p> : null}</label>
               <label className="block"><span className="text-[14px] text-[#6f7f85]">Libellé CTA primaire</span><input value={serviceForm.ctaPrimaryLabel} onChange={(event) => setServiceForm((prev) => ({ ...prev, ctaPrimaryLabel: event.target.value }))} className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" /></label>
               <label className="block"><span className="text-[14px] text-[#6f7f85]">Lien CTA primaire</span><input value={serviceForm.ctaPrimaryHref} onChange={(event) => setServiceForm((prev) => ({ ...prev, ctaPrimaryHref: event.target.value }))} className="mt-1 w-full rounded-[10px] border border-[#d8e4e8] px-3 py-2" placeholder="#contact, /contact ou https://..." />{serviceFormErrors.ctaPrimaryHref ? <p className="text-[12px] text-red-600 mt-1">{serviceFormErrors.ctaPrimaryHref}</p> : null}</label>
             </div>

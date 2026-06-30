@@ -407,6 +407,7 @@ export function PageContentSection({
     { id: 'hero', title: 'Hero', description: 'Contenu de première impression visible au chargement.' },
     { id: 'about', title: 'À propos & services', description: 'Storytelling, promesse et image de marque.' },
     { id: 'highlights', title: 'Projets, blog, contact', description: 'Blocs de conversion et de navigation éditoriale.' },
+    { id: 'footer', title: 'Footer', description: 'Coordonnées, liens, CTA et newsletter.' },
   ] as const;
 
   return (
@@ -705,6 +706,50 @@ export function PageContentSection({
               <div className={ADMIN_SECTION_SUBCARD}>
                 <p className="mb-2 text-[13px] font-semibold text-[#273a41]">Bloc Contact</p>
                 <div className="grid gap-3 md:grid-cols-2"><input value={homeContentForm.contactTitle} onChange={(event) => setHomeContentForm((prev) => ({ ...prev, contactTitle: event.target.value }))} className={ADMIN_INPUT_CLASS} placeholder="Titre contact" /><input value={homeContentForm.contactSubmitLabel} onChange={(event) => setHomeContentForm((prev) => ({ ...prev, contactSubmitLabel: event.target.value }))} className={ADMIN_INPUT_CLASS} placeholder="Libellé bouton contact" /><textarea value={homeContentForm.contactSubtitle} onChange={(event) => setHomeContentForm((prev) => ({ ...prev, contactSubtitle: event.target.value }))} className={`${ADMIN_TEXTAREA_CLASS} md:col-span-2`} placeholder="Sous-titre contact" /></div>
+              </div>
+            </div>
+          </AdminPanel>
+          <AdminPanel title="Footer">
+            <div id="footer" className="space-y-4">
+              <p className={ADMIN_HELPER_TEXT_CLASS}>Contenu affiché dans le pied de page public (coordonnées, liens rapides, CTA et newsletter).</p>
+              <div className="grid gap-3 md:grid-cols-2">
+                <input value={homeContentForm.footer.title} onChange={(event) => setHomeContentForm((prev) => ({ ...prev, footer: { ...prev.footer, title: event.target.value } }))} className={ADMIN_INPUT_CLASS} placeholder="Titre footer" />
+                <input value={homeContentForm.footer.email} onChange={(event) => setHomeContentForm((prev) => ({ ...prev, footer: { ...prev.footer, email: event.target.value } }))} className={ADMIN_INPUT_CLASS} placeholder="Email" />
+                <input value={homeContentForm.footer.phone} onChange={(event) => setHomeContentForm((prev) => ({ ...prev, footer: { ...prev.footer, phone: event.target.value } }))} className={ADMIN_INPUT_CLASS} placeholder="Téléphone" />
+                <input value={homeContentForm.footer.address} onChange={(event) => setHomeContentForm((prev) => ({ ...prev, footer: { ...prev.footer, address: event.target.value } }))} className={ADMIN_INPUT_CLASS} placeholder="Adresse / localisation" />
+                <textarea value={homeContentForm.footer.description} onChange={(event) => setHomeContentForm((prev) => ({ ...prev, footer: { ...prev.footer, description: event.target.value } }))} className={`${ADMIN_TEXTAREA_CLASS} md:col-span-2`} placeholder="Description footer" />
+                <input value={homeContentForm.footer.copyright} onChange={(event) => setHomeContentForm((prev) => ({ ...prev, footer: { ...prev.footer, copyright: event.target.value } }))} className={`${ADMIN_INPUT_CLASS} md:col-span-2`} placeholder="Copyright (utiliser {year} pour l'année courante)" />
+              </div>
+              <div className={ADMIN_SECTION_SUBCARD}>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="text-[13px] font-semibold text-[#273a41]">Liens rapides</p>
+                  <AdminButton type="button" size="sm" onClick={() => setHomeContentForm((prev) => ({ ...prev, footer: { ...prev.footer, quickLinks: [...prev.footer.quickLinks, { label: 'Nouveau lien', url: '/' }] } }))}>Ajouter un lien</AdminButton>
+                </div>
+                <div className="space-y-2">
+                  {homeContentForm.footer.quickLinks.map((link, index) => (
+                    <div key={`${link.label}-${index}`} className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
+                      <input value={link.label} onChange={(event) => setHomeContentForm((prev) => ({ ...prev, footer: { ...prev.footer, quickLinks: prev.footer.quickLinks.map((entry, linkIndex) => linkIndex === index ? { ...entry, label: event.target.value } : entry) } }))} className={ADMIN_INPUT_CLASS} placeholder="Label" />
+                      <input value={link.url} onChange={(event) => setHomeContentForm((prev) => ({ ...prev, footer: { ...prev.footer, quickLinks: prev.footer.quickLinks.map((entry, linkIndex) => linkIndex === index ? { ...entry, url: event.target.value } : entry) } }))} className={ADMIN_INPUT_CLASS} placeholder="URL" />
+                      <AdminButton type="button" size="sm" onClick={() => setHomeContentForm((prev) => ({ ...prev, footer: { ...prev.footer, quickLinks: prev.footer.quickLinks.filter((_, linkIndex) => linkIndex !== index) } }))}>Retirer</AdminButton>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className={ADMIN_SECTION_SUBCARD}>
+                <p className="mb-2 text-[13px] font-semibold text-[#273a41]">CTA footer</p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <input value={homeContentForm.footer.cta.title} onChange={(event) => setHomeContentForm((prev) => ({ ...prev, footer: { ...prev.footer, cta: { ...prev.footer.cta, title: event.target.value } } }))} className={ADMIN_INPUT_CLASS} placeholder="Titre CTA" />
+                  <input value={homeContentForm.footer.cta.buttonLabel} onChange={(event) => setHomeContentForm((prev) => ({ ...prev, footer: { ...prev.footer, cta: { ...prev.footer.cta, buttonLabel: event.target.value } } }))} className={ADMIN_INPUT_CLASS} placeholder="Label bouton CTA" />
+                  <input value={homeContentForm.footer.cta.buttonUrl} onChange={(event) => setHomeContentForm((prev) => ({ ...prev, footer: { ...prev.footer, cta: { ...prev.footer.cta, buttonUrl: event.target.value } } }))} className={ADMIN_INPUT_CLASS} placeholder="URL bouton CTA" />
+                  <textarea value={homeContentForm.footer.cta.text} onChange={(event) => setHomeContentForm((prev) => ({ ...prev, footer: { ...prev.footer, cta: { ...prev.footer.cta, text: event.target.value } } }))} className={`${ADMIN_TEXTAREA_CLASS} md:col-span-2`} placeholder="Texte CTA" />
+                </div>
+              </div>
+              <div className={ADMIN_SECTION_SUBCARD}>
+                <p className="mb-2 text-[13px] font-semibold text-[#273a41]">Newsletter</p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <input value={homeContentForm.footer.newsletter.title} onChange={(event) => setHomeContentForm((prev) => ({ ...prev, footer: { ...prev.footer, newsletter: { ...prev.footer.newsletter, title: event.target.value } } }))} className={ADMIN_INPUT_CLASS} placeholder="Titre newsletter" />
+                  <textarea value={homeContentForm.footer.newsletter.text} onChange={(event) => setHomeContentForm((prev) => ({ ...prev, footer: { ...prev.footer, newsletter: { ...prev.footer.newsletter, text: event.target.value } } }))} className={`${ADMIN_TEXTAREA_CLASS} md:col-span-2`} placeholder="Texte newsletter" />
+                </div>
               </div>
             </div>
           </AdminPanel>

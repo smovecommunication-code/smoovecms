@@ -182,6 +182,13 @@ export interface Service {
   description: string;
   shortDescription?: string;
   summary?: string;
+  detailImage?: string;
+  detailCta?: {
+    title?: string;
+    text?: string;
+    buttonLabel?: string;
+    buttonUrl?: string;
+  };
   icon: string;
   color: string;
   features: string[];
@@ -401,6 +408,15 @@ export const isService = (value: unknown): value is Service => {
     isString(v.color) &&
     isStringArray(v.features) &&
     (v.shortDescription === undefined || isString(v.shortDescription)) &&
+    (v.summary === undefined || isString(v.summary)) &&
+    (v.detailImage === undefined || isString(v.detailImage)) &&
+    (v.detailCta === undefined ||
+      (typeof v.detailCta === 'object' &&
+        v.detailCta !== null &&
+        isOptionalString((v.detailCta as Record<string, unknown>).title) &&
+        isOptionalString((v.detailCta as Record<string, unknown>).text) &&
+        isOptionalString((v.detailCta as Record<string, unknown>).buttonLabel) &&
+        isOptionalString((v.detailCta as Record<string, unknown>).buttonUrl))) &&
     (v.routeSlug === undefined || isString(v.routeSlug)) &&
     (v.overviewTitle === undefined || isString(v.overviewTitle)) &&
     (v.overviewDescription === undefined || isString(v.overviewDescription)) &&
