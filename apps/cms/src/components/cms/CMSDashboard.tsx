@@ -350,6 +350,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
   const [isSavingPost, setIsSavingPost] = useState(false);
   const [statusTransitioningPostId, setStatusTransitioningPostId] = useState<string | null>(null);
   const [blogEditorMode, setBlogEditorMode] = useState<'list' | 'create' | 'edit'>('list');
+  const [blogEditorTab, setBlogEditorTab] = useState<'basic' | 'media' | 'content' | 'seo' | 'publishing'>('basic');
   const [blogForm, setBlogForm] = useState<BlogFormState>(EMPTY_BLOG_FORM);
   const [blogFormErrors, setBlogFormErrors] = useState<Partial<Record<keyof BlogFormState, string>>>({});
 
@@ -820,6 +821,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     setBlogForm(EMPTY_BLOG_FORM);
     setBlogFormErrors({});
     setBlogEditorMode('create');
+    setBlogEditorTab('basic');
     setPostsError('');
   };
 
@@ -827,6 +829,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
     setBlogForm(toBlogFormState(post));
     setBlogFormErrors({});
     setBlogEditorMode('edit');
+    setBlogEditorTab('basic');
   };
 
   const validateBlogForm = (form: BlogFormState) => {
@@ -899,6 +902,7 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
       return;
     }
     setBlogEditorMode('list');
+    setBlogEditorTab('basic');
     setBlogForm(EMPTY_BLOG_FORM);
     setBlogFormErrors({});
   };
@@ -2458,11 +2462,28 @@ export default function CMSDashboard({ currentSection, onSectionChange }: CMSDas
             void saveBlogPost();
           }}
         >
+          <div className="rounded-[16px] border border-[#dce9ed] bg-[#f8fbfc] p-2">
+            <div className="flex flex-wrap gap-2" role="tablist" aria-label="Sections de l’éditeur blog">
+              {[
+                ['basic', 'Basic info'],
+                ['media', 'Media'],
+                ['content', 'Content'],
+                ['seo', 'SEO'],
+                ['publishing', 'Publishing'],
+              ].map(([id, label]) => (
+                <button key={id} type="button" role="tab" aria-selected={blogEditorTab === id} onClick={() => setBlogEditorTab(id as typeof blogEditorTab)} className={`rounded-[12px] px-4 py-2 text-[13px] font-semibold transition ${blogEditorTab === id ? 'bg-[#273a41] text-white shadow-sm' : 'bg-white text-[#536970] hover:bg-[#eef7fa]'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="px-2 pb-1 pt-2 text-[12px] text-[#6f7f85]">Seul le titre est obligatoire. Les sections restent visibles pour une édition rapide; les onglets servent de repères éditoriaux professionnels.</p>
+          </div>
+
           <div className="rounded-[12px] border border-[#eef3f5] p-4 space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h4 className="text-[16px] font-semibold text-[#273a41]">Informations de base</h4>
-                <p className="text-[12px] text-[#6f7f85]">Champs visibles en carte blog et pour le classement éditorial.</p>
+                <p className="text-[12px] text-[#6f7f85]">Seul le titre est obligatoire; les autres champs enrichissent la carte, le détail et la taxonomie.</p>
               </div>
               {blogGroupHasErrors(['title', 'slug', 'author', 'readTime', 'category']) ? <span className="text-[12px] text-red-600">Bloc à corriger</span> : null}
             </div>
